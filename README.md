@@ -12,7 +12,7 @@ land; for now it is the setup path.
 
 | Layer | What | Language | State |
 |---|---|---|---|
-| L1 | Data mart: raw to staging to star schema to segment mart | SQL (Postgres) | raw layer loaded |
+| L1 | Data mart: raw to staging to star schema to segment mart | SQL (Postgres) | raw and staging in |
 | L2 | Claim frequency, Poisson GLM with exposure offset | R | |
 | L3 | Claim severity, Gamma GLM on claiming policies only | R | |
 | L4 | Pure premium, gradient boosting baseline, validation | Python | |
@@ -30,9 +30,26 @@ docker compose up -d          # Postgres 16 on the port in .env
 python -m venv .venv
 .venv/Scripts/python -m pip install -r requirements.txt
 Rscript -e 'install.packages(c("DBI","RPostgres","dplyr","ggplot2"), type="binary")'
-
-.venv/Scripts/python scripts/migrate.py
 ```
+
+Then build the mart, in this order:
+
+```bash
+.venv/Scripts/python scripts/migrate.py       # structure
+.venv/Scripts/python scripts/fetch_data.py    # download, verify, convert
+.venv/Scripts/python scripts/load_raw.py all  # COPY into the raw layer
+.venv/Scripts/python scripts/transform.py     # build staging from raw
+```
+
+The order matters and is enforced rather than documented. Migrations change
+structure and are safe against an empty database; transforms read one layer and
+rewrite the next, and `transform.py` exits non-zero rather than building a layer
+out of an empty source. See `DEVLOG.md` for what happened before it did.
+
+Every cleaning rule writes its own row counts to `stg.cleaning_audit`, so
+the path from 678,013 raw rows to the staged table is reconciled rule by rule
+rather than asserted. `SELECT * FROM stg.cleaning_audit ORDER BY table_name,
+rule_seq` prints the chain; `RESULTS.md` carries the current values.
 
 `scripts/migrate.py --status` reports what is applied. `--reset` drops the
 project schemas and rebuilds them from the SQL files, which is the intended way
@@ -48,11 +65,6 @@ the shell resolves. See `DEVLOG.md`.
 `data/` is not committed. freMTPL2 is public: 678,013 policy-years in the
 frequency table and 26,639 individual claims in the severity table.
 
-```bash
-.venv/Scripts/python scripts/fetch_data.py          # download, verify, convert
-.venv/Scripts/python scripts/load_raw.py all        # COPY into the raw layer
-```
-
 `fetch_data.py` pins the upstream MD5s rather than reading them back from the
 same API it just downloaded from, so a replaced file upstream is detected rather
 than confirmed. It writes `data/CHECKSUMS.txt` for the converted CSVs.
@@ -65,6 +77,7 @@ comparison in `RESULTS.md` is reproducible rather than remembered.
 ```
 migrations/   versioned SQL, applied in filename order, never edited once applied
 scripts/      loaders, the migration runner, shared connection settings
+sql/transform/  re-runnable layer builds, applied by scripts/transform.py
 sql/          ad-hoc analysis queries and the R connection helper
 tests/        pytest
 figures/      generated diagnostics, not committed

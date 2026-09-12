@@ -125,3 +125,138 @@ comparison stays about loading rather than about ORMs.
 makes the number in this entry reproducible by anyone who clones the repository,
 and `--limit` makes it cheap to re-run. A benchmark whose losing branch has been
 deleted is an anecdote.
+
+---
+
+## 2026-09-12 · One policy id is written as `1e+05`
+
+Row 49346 of the upstream ARFF has `1e+05` where every other row has an
+integer. It is scientific notation for 100000, almost certainly from a
+float round-trip somewhere in the export that produced the file.
+
+Three things had to be checked before it could be called harmless.
+
+Is `100000` also present as an ordinary row? No. So resolving the notation
+creates no duplicate identifier. Had it been present, this would have been a
+primary key collision discovered at the `ALTER TABLE ... ADD PRIMARY KEY` at the
+bottom of 002, with no obvious cause.
+
+Does the same problem exist in the severity file? No, all 26,639 identifiers
+there are plain integers.
+
+Does the cast actually work? `'1e+05'::bigint` raises `invalid input syntax for
+type bigint`. `('1e+05'::numeric)::bigint` gives 100000. So the cast in 002
+routes through numeric, and the migration says why at the point where it does.
+
+This is the first real return on the decision recorded earlier to keep the raw
+layer entirely text. With a typed raw layer, this one row would have aborted the
+COPY of all 678,013, and the error would have pointed at the loader.
+
+## 2026-09-12 · A quarter of the reported claims have no amount
+
+Counting before modelling turned up the finding that will shape L3.
+
+| | Policies | Claims |
+|---|---|---|
+| Reporting at least one claim | 34,060 | 36,102 |
+| With no matching row in the severity file | 9,116 | 9,657 |
+
+So 26.7% of reported claims carry no amount. The severity file also never has
+more claims for a policy than the frequency file reports, and never has a claim
+for a policy reporting none, so this is one-directional: the frequency file
+knows about claims the severity file does not price.
+
+The consequence is sharper than the usual warning about severity models. The
+standard advice, and what the project plan says, is to fit severity only where
+`ClaimNb > 0`. That is necessary and it is not sufficient. 9,116 of those
+policies have nothing to fit on. Whatever the severity model is fitted on, it is
+a different effective population from the frequency model, and multiplying the
+two predictions to get pure premium quietly assumes they are not.
+
+Recorded as an observation in `stg.cleaning_audit` rather than acted on. The
+decision belongs with the severity model, and a count in the audit trail is what
+that decision will have to argue against.
+
+Separately: the 195 orphan claims, whose policy-year is missing from the
+frequency file entirely, come from just six identifiers carrying 21 to 66 claims
+each. Ordinary policies do not look like that. They are left in place until 004,
+where the foreign key removes them for a referential reason rather than a
+judgement about their contents.
+
+## 2026-09-12 · Making the audit table falsifiable
+
+The cleaning audit is only worth having if it can be wrong and be caught. A
+`rows_out` column written by hand looks exactly as convincing as one that is
+true.
+
+So `stg.record_rule` never takes `rows_out` as an argument. It counts the table
+itself, at the moment the rule finishes. The caller supplies only the name and
+how many rows its own statement touched.
+
+And the test re-derives the chain rather than reading it: for each table, in
+rule order, `rows_out` must equal the previous `rows_out` minus `rows_affected`
+for a reject, and must be unchanged for an observation, with the last value
+matching a fresh `count(*)`. Verified that it fails when it should by editing
+one `rows_out` by seven and watching the assertion name the rule.
+
+There is a related trap the chain cannot catch on its own. A reject rule whose
+predicate is simply wrong reports zero removals, which is indistinguishable from
+clean data. So the predicates are re-asserted against the finished table in a
+separate test. Five of the six reject rules here legitimately remove nothing;
+without that second test there would be no evidence they were ever capable of
+removing anything.
+
+## 2026-09-12 · A staging layer built from an empty raw layer, and a green test run
+
+The worst bug so far, because nothing failed.
+
+`002_stg.sql` both created the staging tables and filled them from
+`raw.freq_raw`. But `migrate.py --reset` drops the project schemas and applies
+every migration in order, and that happens *before* any data is loaded. So the
+documented rebuild sequence produced this:
+
+```
+migrate.py --reset     # 001 creates raw (empty), 002 reads raw (empty)
+load_raw.py all        # raw now has 678,013 rows
+migrate.py             # "nothing to apply" -- 002 is already recorded
+```
+
+Final state: a fully loaded raw layer and a staging layer of zero rows, with no
+command in the project that would fix it.
+
+Two things made this survivable long enough to be interesting.
+
+**The audit trail reconciled.** All seven rules recorded, every one reporting
+`rows_affected = 0` and `rows_out = 0`. The chain closes perfectly, because
+zero minus zero is zero. An accounting of nothing is still a valid accounting,
+and the very test written to prove the audit table is not decorative passed.
+
+**The test suite was green.** `14 passed, 8 skipped`. The `staged` fixture
+skipped when `stg.policy_cleaned` was empty, on the reasoning that a fresh clone
+with no data should not produce a wall of failures. That reasoning is right for
+a fresh clone and wrong here, and the fixture could not tell the two apart.
+
+The fix separates two things that had been conflated.
+
+| | Migration | Transform |
+|---|---|---|
+| Changes | structure | data |
+| Runs | once, then frozen | whenever the layer below changes |
+| Safe on an empty database | yes | refuses |
+
+`migrations/002_stg.sql` now creates tables and the audit function only.
+`sql/transform/002_stg.sql` holds the rules, truncates before it writes, and is
+re-run freely. `scripts/transform.py` checks that every required source is
+non-empty before it runs anything, and exits 1 with the correct command to run
+instead. The fixture now distinguishes the two cases: no data at all skips, data
+in raw with nothing in staging fails and says which script was not run.
+
+The general lesson is about the shape of the check, not this pipeline. A test
+whose precondition can be satisfied by the failure it is meant to detect reports
+success. "Skip if empty" is that shape whenever empty is a possible symptom.
+
+The staging tables also lost their CHECK constraints in this refactor, which
+looks like a regression and is not. The rules insert everything and delete per
+rule, and that is what makes the row-count chain reconcile; a CHECK would reject
+rows at insert time and leave the rules with nothing to count. Constraints
+belong on the star schema in 004, after the rules have run.
