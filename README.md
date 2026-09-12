@@ -12,7 +12,7 @@ land; for now it is the setup path.
 
 | Layer | What | Language | State |
 |---|---|---|---|
-| L1 | Data mart: raw to staging to star schema to segment mart | SQL (Postgres) | raw and staging in |
+| L1 | Data mart: raw to staging to star schema to segment mart | SQL (Postgres) | raw, staging, pricing decisions in |
 | L2 | Claim frequency, Poisson GLM with exposure offset | R | |
 | L3 | Claim severity, Gamma GLM on claiming policies only | R | |
 | L4 | Pure premium, gradient boosting baseline, validation | Python | |
@@ -50,6 +50,11 @@ Every cleaning rule writes its own row counts to `stg.cleaning_audit`, so
 the path from 678,013 raw rows to the staged table is reconciled rule by rule
 rather than asserted. `SELECT * FROM stg.cleaning_audit ORDER BY table_name,
 rule_seq` prints the chain; `RESULTS.md` carries the current values.
+
+Cleaning and pricing decisions are separate layers. `stg.policy_cleaned` holds
+what the file said, with malformed rows removed. `stg.policy_adjusted` holds
+what the project decided to model on, beside it rather than over it, so a
+decision can be revisited by re-running one transform.
 
 `scripts/migrate.py --status` reports what is applied. `--reset` drops the
 project schemas and rebuilds them from the SQL files, which is the intended way

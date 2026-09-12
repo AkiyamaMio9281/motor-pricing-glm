@@ -75,6 +75,43 @@ Other measured ranges: DrivAge 18-100, VehAge 0-100, BonusMalus 50-230,
 VehPower 4-15, ClaimNb max 16, Exposure 0.0027 to 2.01. Claim amounts run from
 1 to 4,075,400.56, totalling 60,697,931.
 
+### Pricing decisions
+
+`migrations/003_adjusted.sql` and `sql/transform/003_adjusted.sql`. Nothing is
+removed; the uncapped values stay in `stg.policy_cleaned`.
+
+| Decision | Kind | Policies | Basis |
+|---|---|---|---|
+| cap_exposure_at_one | transform | 1,224 | costs 139 exposure-years and no claims; dropping would cost 1,363 and 54 |
+| flag_high_claim_count | transform | 9 | claim_nb > 4, max 16; counts are never capped |
+| flag_short_exposure | transform | 13,603 | exposure < 0.02 yr, where proportionality measurably fails |
+| observe_implied_rate_above_monthly | observe | 2,773 | implied rate > 12/yr, max 732 |
+
+Modelling exposure after capping: 358,360 years against 358,499 raw, a loss of
+139. Portfolio frequency is unchanged at 0.1007 to four places.
+
+### Claims are not proportional to exposure
+
+The measurement the short-exposure flag rests on. Reproduce by grouping
+`stg.policy_cleaned` on exposure bands.
+
+| Exposure band | Policies | Exposure-years | Claims | Claims per exposure-year |
+|---|---|---|---|---|
+| under a week | 13,603 | 101 | 362 | 3.58 |
+| under 5 weeks | 107,950 | 6,825 | 2,793 | 0.41 |
+| under half a year | 220,064 | 63,179 | 9,815 | 0.16 |
+| half to one year | 335,172 | 287,031 | 23,078 | 0.08 |
+| over a year | 1,224 | 1,363 | 54 | 0.04 |
+| **whole portfolio** | **678,013** | **358,360** | **36,102** | **0.1007** |
+
+Under the proportionality that a `log(Exposure)` offset asserts, the last column
+would be flat at 0.1007. It spans a factor of 90, monotonically. The
+short-exposure band holds 1.0% of claims on 0.03% of exposure.
+
+Consequence for L2: the offset's central assumption is violated at the short
+end, so the frequency model is refitted with and without the flagged rows and
+the coefficient movement reported.
+
 ---
 
 ## L2 · Frequency model

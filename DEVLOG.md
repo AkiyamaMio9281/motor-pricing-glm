@@ -260,3 +260,86 @@ looks like a regression and is not. The rules insert everything and delete per
 rule, and that is what makes the row-count chain reconcile; a CHECK would reject
 rows at insert time and leave the rules with nothing to count. Constraints
 belong on the star schema in 004, after the rules have run.
+
+---
+
+## 2026-09-12 · Capping exposure is easy; the interesting number was next to it
+
+The exposure decision took ten minutes and is not worth much discussion. 1,224
+policy-years run past a year, to 2.01. Capping costs 139 exposure-years out of
+358,499 and no claims. Dropping costs 1,363 exposure-years and 54 claims, and
+biases portfolio frequency upward, because the over-one band has the lowest
+frequency in the book. A policy-year longer than a year is a bookkeeping
+artefact, not a policy exposed for longer than it existed. Cap it.
+
+What the same query turned up beside it is the finding.
+
+The plan for this commit was to flag policies with an extreme claim count. Nine
+policies report more than four claims. Listing them with their exposure made it
+obvious the claim count was the wrong thing to be looking at:
+
+| Policy | Claims | Exposure | Implied annual rate |
+|---|---|---|---|
+| 3254353 | 11 | 0.07 | 157 |
+| 3253234 | 11 | 0.08 | 138 |
+| 2248174 | 9 | 0.08 | 113 |
+| 93954 | 5 | 1.00 | 5 |
+
+Five claims in a full year is a bad driver. Eleven claims in three and a half
+weeks is not a driver at all. So the question moved from the count to the count
+divided by exposure, and from nine policies to the whole book.
+
+**Claims are not proportional to exposure in this portfolio, and the departure
+is enormous.**
+
+| Exposure | Policies | Exposure-years | Claims | Claims per year |
+|---|---|---|---|---|
+| under a week | 13,603 | 101 | 362 | 3.58 |
+| under 5 weeks | 107,950 | 6,825 | 2,793 | 0.41 |
+| under half a year | 220,064 | 63,179 | 9,815 | 0.16 |
+| half to one year | 335,172 | 287,031 | 23,078 | 0.08 |
+| over a year | 1,224 | 1,363 | 54 | 0.04 |
+
+Under proportionality that last column is flat at the portfolio rate of 0.10.
+It spans a factor of ninety instead, monotonically decreasing in exposure. The
+probability of having any claim says the same thing from the other direction: a
+policy exposed under a week has a 2.5% chance of a claim where proportionality
+predicts about 0.06%, against 6.5% for a full year.
+
+This matters because `log(Exposure)` as a Poisson offset *is* the assertion that
+expected claims are proportional to exposure. That assertion is the one thing
+D2-2 exists to get right, and the data says it is false in a measurable,
+systematic way at the short end.
+
+The likely mechanism is not error but selection. A policy that has a claim is
+more likely to end soon after -- cancellation, a write-off, a change of insurer
+-- so exposure is partly an outcome of the claim rather than something that
+preceded it. Nothing in a cleaning layer can fix that, and deleting the rows
+would be worse: 13,603 policies carrying 362 claims, 1% of all claims, on 0.03%
+of exposure. That is the precise shape of a high-leverage point in a Poisson
+fit, and quietly removing it would improve every diagnostic while changing the
+answer.
+
+So the decision here is to flag and keep. `stg.policy_adjusted` carries
+`is_short_exposure` at a one-week threshold, where the departure stops being
+gradual, and `implied_rate` computed once so that no downstream diagnostic picks
+its own definition. D2 refits with and without those rows and reports whether
+the coefficients move. That is a result, not a cleaning rule, and it belongs in
+the model layer.
+
+Two smaller decisions came out of the same look.
+
+**Claim counts are flagged, never capped.** Some published treatments of this
+dataset cap `ClaimNb` at 4. That discards observed claims to tidy a histogram,
+on 0.001% of policies, in a model that already has an offset for how long each
+policy was exposed.
+
+**Adjustments live beside the data, not over it.** `stg.policy_adjusted` is a
+separate narrow table rather than an edit to `stg.policy_cleaned`. The cleaned
+layer keeps what the file said. Someone who disagrees with the one-week
+threshold changes one transform and re-runs it, instead of rebuilding the mart
+from the CSV to recover the original exposure.
+
+The test for the threshold re-derives the band measurement instead of asserting
+the constant. A threshold justified by a number in a comment is a threshold that
+can stop matching its data without anything noticing.
