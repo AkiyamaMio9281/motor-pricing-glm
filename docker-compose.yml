@@ -1,0 +1,26 @@
+# Postgres for the L1 data mart. Nothing here is production shaped; the point is
+# that the database is disposable and reproducible, so `docker compose down -v`
+# followed by `python scripts/migrate.py` rebuilds the whole mart from SQL.
+services:
+  db:
+    image: postgres:16
+    container_name: motor_pricing_db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-motor_pricing}
+      POSTGRES_USER: ${POSTGRES_USER:-pricing}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me_locally}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    # Left at the stock 128MB shared_buffers. The index work in L1 is measured
+    # against these defaults, so the EXPLAIN ANALYZE plans recorded in
+    # docs/explain-plans.md are reproducible by anyone running this file.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-pricing} -d ${POSTGRES_DB:-motor_pricing}"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+
+volumes:
+  pgdata:

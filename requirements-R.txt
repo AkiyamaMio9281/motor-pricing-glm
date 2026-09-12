@@ -1,0 +1,10 @@
+# R 4.6.1 packages for L2/L3. Install with:
+#   Rscript -e 'install.packages(c("DBI","RPostgres","dplyr","ggplot2"), type="binary")'
+#
+# Rtools is deliberately not required: CRAN ships Windows binaries for all four,
+# so nothing here compiles locally. The GLMs themselves use base R's glm(),
+# which is why there is no modelling package in this list.
+DBI
+RPostgres
+dplyr
+ggplot2

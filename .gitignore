@@ -1,0 +1,35 @@
+# Data is fetched, never committed. freMTPL2freq alone is ~678k rows; a CSV that
+# size in the history makes every clone pay for it. scripts/fetch_data.py plus
+# the checksum in data/CHECKSUMS.txt is the reproducible substitute.
+data/*
+!data/.gitkeep
+!data/CHECKSUMS.txt
+
+# Local environment
+.venv/
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# R
+.Rhistory
+.RData
+.Rproj.user/
+
+# Generated outputs. Figures and exports are rebuilt by the pipeline; the
+# numbers that matter live in RESULTS.md, which is committed.
+figures/*
+!figures/.gitkeep
+exports/*
+!exports/.gitkeep
+
+# Job-search planning notes. These describe which postings the project targets
+# and how the commit history is paced. They are working notes for the author,
+# not part of the project, and committing them would put hiring-strategy text in
+# a repo meant to be read as engineering work.
+SPEC.md
+docs/commit-plan.md
+docs/environment.md
