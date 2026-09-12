@@ -65,3 +65,63 @@ left this database and a fresh clone with silently different schemas.
 Refusing is better than warning here. The remedy is a new migration, or
 `--reset` to rebuild, and both leave a reproducible mart. Verified: exit code 1
 on drift, and `--status` reports `APPLIED, FILE CHANGED`.
+
+---
+
+## 2026-09-12 · OpenML's row count disagrees with the file OpenML serves
+
+The description text for OpenML dataset 41214 says freMTPL2freq "contains risk
+features for 677,991 motor third-part liability policies". The CASdatasets
+original, and every paper that uses it, says 678,013.
+
+Counted the file that OpenML actually serves: 678,013 data rows. So the
+description is wrong and the data is right, which is the better of the two ways
+that could have gone.
+
+Worth the ten minutes it cost, because the alternative was writing 677,991 into
+the row-count assertion in `fetch_data.py` and then spending much longer on why
+a correct download kept failing validation. The lesson is narrow and practical:
+a dataset's prose description is not a checksum. `fetch_data.py` now asserts the
+count against the file, and the constant carries a comment saying why it
+disagrees with the upstream page.
+
+Both files' MD5s do match what OpenML publishes, so this is a documentation
+error on their side, not a mirror serving different data.
+
+---
+
+## 2026-09-12 · COPY is 31x faster than batched INSERTs, and the header is why
+
+Loading 678,013 rows into `raw.freq_raw`, four runs of each method against the
+same container:
+
+| Method | Runs (ms) | Median |
+|---|---|---|
+| `COPY FROM STDIN` | 361, 385, 398, 471 | **392 ms** |
+| `executemany`, 10k batches | 11,590, 12,001, 12,159, 16,455 | **12,080 ms** |
+
+About 31x. The 16,455 ms run is an outlier with nothing to blame it on; it is
+left in the table rather than dropped, and the median is used instead of the
+mean so it does not do the talking.
+
+The gap is larger than "fewer round trips" explains on its own. `executemany`
+also parses all 36 MB in Python and builds 678,013 tuples before any of it
+reaches the socket, while the COPY path never decodes the file at all -- it
+reads 1 MB blocks and writes them straight to the connection. That asymmetry is
+not a flaw in the comparison to be corrected for. It is most of the mechanism,
+and it is why the measured question is "what does it cost to get this file into
+that table", end to end, rather than a narrower one about protocol overhead.
+
+Two decisions came out of this.
+
+**`pandas.to_sql` was not measured.** The plan named it as the slow side of the
+comparison, but `to_sql` under pandas 3 needs SQLAlchemy, and installing a
+dependency in order to demonstrate an approach the project then discards is a
+bad trade. `to_sql` batches INSERTs through SQLAlchemy, so `executemany` on the
+same driver measures the same mechanism with one less layer in the way, and the
+comparison stays about loading rather than about ORMs.
+
+**Both methods stayed in the code.** The slow one is not dead weight: it is what
+makes the number in this entry reproducible by anyone who clones the repository,
+and `--limit` makes it cheap to re-run. A benchmark whose losing branch has been
+deleted is an anecdote.

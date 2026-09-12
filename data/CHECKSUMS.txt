@@ -1,0 +1,3 @@
+# sha256 of the converted CSVs. Regenerate with scripts/fetch_data.py.
+97cb4517072d3fad16c4592dbce039f3941c1e35f05100dc12f8023aef5f3b78  freMTPL2freq.csv
+65c9b06eb743309fe54a76e3bf5a3ee7bb432ea851189c4788bf200535d5366d  freMTPL2sev.csv

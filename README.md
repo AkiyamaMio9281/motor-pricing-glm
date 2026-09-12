@@ -12,7 +12,7 @@ land; for now it is the setup path.
 
 | Layer | What | Language | State |
 |---|---|---|---|
-| L1 | Data mart: raw to staging to star schema to segment mart | SQL (Postgres) | raw layer in |
+| L1 | Data mart: raw to staging to star schema to segment mart | SQL (Postgres) | raw layer loaded |
 | L2 | Claim frequency, Poisson GLM with exposure offset | R | |
 | L3 | Claim severity, Gamma GLM on claiming policies only | R | |
 | L4 | Pure premium, gradient boosting baseline, validation | Python | |
@@ -45,9 +45,20 @@ the shell resolves. See `DEVLOG.md`.
 
 ## Data
 
-`data/` is not committed. freMTPL2 is public: the frequency table has ~678k
-policy-years and the severity table ~26.6k individual claims. Both are fetched
-and checksummed by `scripts/fetch_data.py` (D1-2).
+`data/` is not committed. freMTPL2 is public: 678,013 policy-years in the
+frequency table and 26,639 individual claims in the severity table.
+
+```bash
+.venv/Scripts/python scripts/fetch_data.py          # download, verify, convert
+.venv/Scripts/python scripts/load_raw.py all        # COPY into the raw layer
+```
+
+`fetch_data.py` pins the upstream MD5s rather than reading them back from the
+same API it just downloaded from, so a replaced file upstream is detected rather
+than confirmed. It writes `data/CHECKSUMS.txt` for the converted CSVs.
+
+`load_raw.py --method executemany` is the slow path, kept so the loader
+comparison in `RESULTS.md` is reproducible rather than remembered.
 
 ## Repository layout
 
