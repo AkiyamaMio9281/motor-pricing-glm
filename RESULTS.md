@@ -112,6 +112,59 @@ Consequence for L2: the offset's central assumption is violated at the short
 end, so the frequency model is refitted with and without the flagged rows and
 the coefficient movement reported.
 
+### Star schema
+
+`migrations/004_dim_fact.sql` and `sql/transform/004_dim_fact.sql`.
+
+| Table | Grain | Rows |
+|---|---|---|
+| dim.region | region | 22 |
+| dim.area | density band | 6 |
+| dim.vehicle | brand, fuel, power | 235 |
+| dim.driver_band | reporting age band | 8 |
+| dim.bonus_band | bonus-malus state | 4 |
+| fact.exposure | policy-year | 678,013 |
+| fact.claim | claim | 26,444 |
+
+Every policy-year reaches the fact table; the count is asserted inside the
+transform. Of 26,639 staged claims, 195 are excluded because their policy-year
+is absent from the frequency file: six policies carrying 21 to 66 claims each,
+788,714 in total amount.
+
+Joining `fact.claim` to `fact.exposure` and summing exposure gives 18,286
+exposure-years against a correct 17,270 for the same policies, because each
+policy-year is counted once per claim. Aggregate claims first.
+
+### Bonus-malus bands
+
+Anchored on the French scale, not on quantiles.
+
+| Band | Policies | Exposure-years | Claims per exposure-year |
+|---|---|---|---|
+| 50 maximum bonus | 384,156 | 225,233 | 0.0802 |
+| 51-99 bonus | 266,533 | 123,454 | 0.1214 |
+| 100 entry | 19,530 | 6,241 | 0.2758 |
+| 101+ malus | 7,794 | 3,571 | 0.3758 |
+
+Computed on raw exposure; the monotone rise holds on capped exposure too and is
+asserted by a test.
+
+### Area is a density band with inconsistent boundaries
+
+All 22 regions span several areas, so area is not a regional attribute. It
+bands density, but the densities 50, 100 and 500 are each assigned to two
+areas, 4,012 policies at exactly the three internal boundaries. Area is taken
+from the source and cannot be recomputed from density.
+
+### Silent loss from an INNER JOIN, measured
+
+A one-year gap in the driver bands, tested inside a rolled-back transaction:
+
+| Join | Outcome |
+|---|---|
+| INNER JOIN | 667,712 rows; 10,301 policies dropped with no error |
+| LEFT JOIN into NOT NULL key | transform fails on a row with driv_age 26 |
+
 ---
 
 ## L2 · Frequency model

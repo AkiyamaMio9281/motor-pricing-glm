@@ -94,8 +94,28 @@ def main(argv: list[str] | None = None) -> int:
         for path in files:
             sql = path.read_text(encoding="utf-8")
             started = time.perf_counter()
-            with conn.cursor() as cur:
-                cur.execute(sql)
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(sql)
+            except psycopg.Error as exc:
+                # The file ran in one transaction, so rolling back leaves every
+                # table this transform touches exactly as it was before. Say so,
+                # because the first question after a failed rebuild is whether
+                # the mart is now half-built.
+                conn.rollback()
+                diag = exc.diag
+                print(
+                    f"  FAILED {path.name}: {diag.message_primary or exc}",
+                    file=sys.stderr,
+                )
+                if diag.message_detail:
+                    print(f"    {diag.message_detail}", file=sys.stderr)
+                print(
+                    f"    rolled back; tables written by {path.name} are "
+                    f"unchanged, and later transforms were not run.",
+                    file=sys.stderr,
+                )
+                return 1
             conn.commit()
             duration_ms = int((time.perf_counter() - started) * 1000)
             print(f"  ran {path.name} in {duration_ms:,} ms")

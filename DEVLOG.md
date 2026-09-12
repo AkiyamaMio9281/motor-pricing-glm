@@ -343,3 +343,116 @@ from the CSV to recover the original exposure.
 The test for the threshold re-derives the band measurement instead of asserting
 the constant. A threshold justified by a number in a comment is a threshold that
 can stop matching its data without anything noticing.
+
+---
+
+## 2026-09-12 · The foreign key failed, and its error was the least useful part
+
+Built the star schema with every constraint declared up front, and loaded
+`fact.claim` from every staged claim. The foreign key refused it:
+
+```
+psycopg.errors.ForeignKeyViolation: insert or update on table "claim"
+    violates foreign key constraint "claim_idpol_fkey"
+DETAIL:  Key (idpol)=(2262511) is not present in table "exposure".
+```
+
+This is the textbook failure, and it was expected. What was worth writing down
+is how little the message says. It names one key and stops. The real violation
+is 195 claims across six policies, each carrying 21 to 66 claims, and policy
+2262511 is only reported because it happens to be the largest.
+
+Nothing about the scope came from the error. It came from
+`observe_orphan_claims = 195`, recorded in 002 three commits ago, which is the
+argument for recording observations at all: the constraint did not discover the
+problem, it enforced a decision that had been deliberately deferred to the layer
+where it belongs. Without the observation, the next step after this error would
+have been a query to find out how bad it was.
+
+The decision is to exclude them. A claim with no policy-year has no exposure to
+price against, so it cannot enter the frequency model; in the severity model it
+would contribute amounts from policies whose rating factors are unknown, and
+there is nothing to impute them from. 788,714 in claim amount leaves with them.
+
+Two things about the failure itself were checked rather than assumed.
+
+**The failed transform left nothing half-built.** Each transform runs in one
+transaction, so after the error all seven tables in the layer were empty rather
+than holding dimensions with no facts. Then, after the fix, reintroducing the
+bad insert and running again left the *previous good* star schema fully intact
+at 678,013 and 26,444 rows. `TRUNCATE` is transactional in Postgres, so the
+rollback restores the old contents too. A failed rebuild does not destroy the
+last good mart, which is the property that matters on the day a rebuild fails.
+
+**`transform.py` printed a raw Python traceback.** Replaced it with the
+transform name, Postgres's primary message and detail, and an explicit line
+saying the transaction was rolled back and later transforms did not run. The
+first question after a failed rebuild is whether the mart is now broken, and the
+output should answer it.
+
+## 2026-09-12 · An INNER JOIN to a band table can lose 10,301 policies silently
+
+The fact table is loaded by joining staged policies to their dimensions. For
+region, area and vehicle, those dimensions are built from the same staged rows,
+so every value has a match. The two band dimensions are different: their ranges
+are written by hand, and a range can have a gap.
+
+Measured what a gap costs, inside a transaction that was rolled back. Moving the
+lower bound of the 26-30 driver band to 27, so that exactly one age has no band:
+
+| Join | Result |
+|---|---|
+| `INNER JOIN` | 667,712 rows, **10,301 policies silently dropped**, no error |
+| `LEFT JOIN` into a `NOT NULL` key | fails, naming a row with `driv_age = 26` |
+
+A one-year gap removes 1.5% of the book, and every downstream number would be
+computed confidently on the remaining 98.5%. So the transform uses `LEFT JOIN`
+into `NOT NULL` keys throughout, including the dimensions that cannot currently
+have gaps, because the point is that the failure mode is loud by construction
+rather than absent by luck. An overlap fails the other way: the policy matches
+two bands and the primary key refuses the duplicate `idpol`. A count assertion
+at the end closes the last case, a fan-out that duplicates nothing.
+
+The same experiment showed the dimension protecting itself: deleting the band
+failed first, because `fact.exposure` still referenced it.
+
+## 2026-09-12 · Area is not a property of region
+
+The plan listed four dimensions, with area folded into region. Checked the
+functional dependency before building it, and it does not hold: all 22 regions
+span several areas. Area is a banding of *density* instead, A through F running
+from under 50 inhabitants per km2 to over 10,000.
+
+It is not a clean banding either. The densities 50, 100 and 500 each appear
+under two different areas -- exactly the three internal boundaries, 4,012
+policies in all. The upstream derivation assigned boundary values
+inconsistently, so area cannot be recomputed from density and has to be taken
+from the source. It gets its own dimension, carrying its density range as a
+description rather than a rule.
+
+The modelling consequence is for D2: area and density carry close to the same
+information, so putting both in the frequency GLM is near-collinear by
+construction.
+
+## 2026-09-12 · Two banding choices, and why they are not the modelling bands
+
+Driver age uses conventional motor bands, narrow at the young end where risk
+moves fastest. Bonus-malus is banded on the meaning of the French scale rather
+than on its distribution: 100 is the entry coefficient, each claim-free year
+takes 5% off to a floor of 50, each claim adds 25%. So exactly 50, below 100,
+exactly 100 and above 100 are four different histories, and the observed
+frequency rises monotonically across them, 0.08 to 0.12 to 0.28 to 0.38. A test
+holds that monotonicity.
+
+These are *reporting* bands, fixed so that the mart and the Power BI extract have
+categories that do not move. The fact table keeps the raw continuous values
+beside the band keys, because D2-3 chooses modelling bands from the data, and a
+rating plan is allowed to report on one banding and price on another.
+
+## Open for D1-6: transform 004 takes ten seconds
+
+Transforms 002 and 003 run in one to two seconds. 004 takes nine to ten. The
+likely cost is per-row constraint checking: five foreign keys and two CHECK
+constraints evaluated on each of 678,013 inserted rows. Not investigated here,
+because measuring it properly is what D1-6 is for, and a guess recorded as a
+finding would be worse than an open question recorded as one.

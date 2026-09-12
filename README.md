@@ -12,7 +12,7 @@ land; for now it is the setup path.
 
 | Layer | What | Language | State |
 |---|---|---|---|
-| L1 | Data mart: raw to staging to star schema to segment mart | SQL (Postgres) | raw, staging, pricing decisions in |
+| L1 | Data mart: raw to staging to star schema to segment mart | SQL (Postgres) | through star schema |
 | L2 | Claim frequency, Poisson GLM with exposure offset | R | |
 | L3 | Claim severity, Gamma GLM on claiming policies only | R | |
 | L4 | Pure premium, gradient boosting baseline, validation | Python | |
@@ -55,6 +55,12 @@ Cleaning and pricing decisions are separate layers. `stg.policy_cleaned` holds
 what the file said, with malformed rows removed. `stg.policy_adjusted` holds
 what the project decided to model on, beside it rather than over it, so a
 decision can be revisited by re-running one transform.
+
+The star schema is `fact.exposure` at policy-year grain and `fact.claim` at claim
+grain, with five dimensions. Claims are not pre-aggregated: summing exposure
+over a join of the two counts each policy-year once per claim, so aggregate
+claims first. Every transform runs in one transaction, and a failed rebuild
+leaves the previous good tables in place.
 
 `scripts/migrate.py --status` reports what is applied. `--reset` drops the
 project schemas and rebuilds them from the SQL files, which is the intended way
