@@ -12,7 +12,7 @@ land; for now it is the setup path.
 
 | Layer | What | Language | State |
 |---|---|---|---|
-| L1 | Data mart: raw to staging to star schema to segment mart | SQL (Postgres) | through star schema |
+| L1 | Data mart: raw to staging to star schema to segment mart | SQL (Postgres) | through star schema, indexed |
 | L2 | Claim frequency, Poisson GLM with exposure offset | R | |
 | L3 | Claim severity, Gamma GLM on claiming policies only | R | |
 | L4 | Pure premium, gradient boosting baseline, validation | Python | |
@@ -62,6 +62,14 @@ over a join of the two counts each policy-year once per claim, so aggregate
 claims first. Every transform runs in one transaction, and a failed rebuild
 leaves the previous good tables in place.
 
+Indexes were added only where `EXPLAIN ANALYZE` showed they pay, and one that
+did not was rejected. `docs/explain-plans.md` holds the plans and is generated,
+not written:
+
+```bash
+.venv/Scripts/python scripts/explain_plans.py
+```
+
 `scripts/migrate.py --status` reports what is applied. `--reset` drops the
 project schemas and rebuilds them from the SQL files, which is the intended way
 to get back to a known state.
@@ -89,6 +97,7 @@ comparison in `RESULTS.md` is reproducible rather than remembered.
 migrations/   versioned SQL, applied in filename order, never edited once applied
 scripts/      loaders, the migration runner, shared connection settings
 sql/transform/  re-runnable layer builds, applied by scripts/transform.py
+sql/explain/    queries measured by scripts/explain_plans.py
 sql/          ad-hoc analysis queries and the R connection helper
 tests/        pytest
 figures/      generated diagnostics, not committed

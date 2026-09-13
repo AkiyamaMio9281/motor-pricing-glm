@@ -165,6 +165,46 @@ A one-year gap in the driver bands, tested inside a rolled-back transaction:
 | INNER JOIN | 667,712 rows; 10,301 policies dropped with no error |
 | LEFT JOIN into NOT NULL key | transform fails on a row with driv_age 26 |
 
+### Indexes and load performance
+
+Measured by `scripts/explain_plans.py`, which regenerates
+`docs/explain-plans.md` with full plans. Five runs per variant, medians; the
+without-index variant drops the index inside a rolled-back transaction.
+
+| Query | Index | Without | With | Change |
+|---|---|---|---|---|
+| Claims for one policy | `fact.claim_idpol_idx` | 0.53 ms | 0.01 ms | 44.3x faster |
+| Delete the claim-free policy-years of one region | `fact.claim_idpol_idx` | 634.22 ms | 7.24 ms | 87.6x faster |
+| Vehicle drilldown, region R43 (0.2% of policies) | `fact.exposure_region_key_idx` | 8.68 ms | 0.52 ms | 16.6x faster |
+| Vehicle drilldown, region R24 (23.7% of policies) | `fact.exposure_region_key_idx` | 16.06 ms | 15.43 ms | no gain |
+| Portfolio overview by driver band and bonus band | none | 33.55 ms | | |
+
+Loading `fact.exposure`, 678,013 rows:
+
+| Method | Median |
+|---|---|
+| INSERT with five per-row foreign-key triggers | 9,258 ms |
+| suspend foreign keys, INSERT, restore set-based | 1,976 ms |
+
+4.7x. EXPLAIN ANALYZE attributes about three quarters of the per-row load to
+five foreign-key triggers firing 678,013 times each.
+
+Deleting every claim-free policy-year, 643,953 rows, one run each and not part of
+the regenerated document because the slow side takes five and a half minutes:
+
+| | Total |
+|---|---|
+| without `claim_idpol_idx` | 328,607 ms |
+| with `claim_idpol_idx` | 2,546 ms |
+
+A covering index `(region_key) INCLUDE (vehicle_key, exposure, claim_nb)` was
+measured and rejected: 13% faster on the broad region, 26 MB against 4.6 MB for
+the plain index.
+
+Timings below a second varied by a factor of two to three between the
+exploratory and final measurement sessions. The document is the reference; the
+magnitudes above held in both.
+
 ---
 
 ## L2 · Frequency model

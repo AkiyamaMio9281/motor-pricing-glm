@@ -456,3 +456,172 @@ likely cost is per-row constraint checking: five foreign keys and two CHECK
 constraints evaluated on each of 678,013 inserted rows. Not investigated here,
 because measuring it properly is what D1-6 is for, and a guess recorded as a
 finding would be worse than an open question recorded as one.
+
+---
+
+## 2026-09-12 · The load was slow because of foreign keys, and the fix had to avoid copying them
+
+D1-5 left an open question: transform 004 took nine to ten seconds against one
+to two for the others, and the guess was per-row constraint checking. It was
+answered with `EXPLAIN ANALYZE` on the INSERT, which reports each foreign-key
+trigger separately:
+
+```
+Trigger for constraint exposure_region_key_fkey:      time=1735 ms  calls=678013
+Trigger for constraint exposure_area_key_fkey:        time=1760 ms  calls=678013
+Trigger for constraint exposure_vehicle_key_fkey:     time=3495 ms  calls=678013
+Trigger for constraint exposure_driver_band_key_fkey: time=1839 ms  calls=678013
+Trigger for constraint exposure_bonus_band_key_fkey:  time=1756 ms  calls=678013
+Execution Time: 13951 ms
+```
+
+Three quarters of the time is five triggers each doing 678,013 lookups. The
+guess was right, which is worth less than it sounds: I had suspected the band
+joins just as confidently, and the plan shows those cost nothing. Postgres puts
+a Memoize node over each band lookup, and 678,013 lookups of driver age resolve
+with 83 cache misses, one per distinct age.
+
+The standard fix is to drop the constraints, load, and add them back, so each is
+validated by one set-based query. Measured over two sessions, that took the load
+from about ten seconds to about two, 4.7x to 5.7x, with the set-based validation
+of all five under 200 ms.
+
+The standard *implementation* is the thing to avoid. Writing the ADD CONSTRAINT
+statements into the transform creates a second copy of every foreign key
+definition, and two copies drift: change a constraint in a migration and the
+next rebuild silently re-creates the old one. So `meta.suspend_foreign_keys`
+reads the definitions out of `pg_constraint` before dropping them, and
+`meta.restore_foreign_keys` puts back exactly what it read. The migration stays
+the only place a constraint is defined.
+
+That introduces one new way to fail, a constraint dropped and never restored,
+and it is closed three times over: the sequence runs in the transform's single
+transaction, `meta.assert_foreign_keys_restored()` raises before commit if
+anything is still stashed, and a test checks every constraint exists afterwards.
+
+One subtler hole was closed as well. `pg_get_constraintdef` omits the schema of a
+referenced table when that schema is on the search path, so under a search path
+containing `dim` the stash would read `REFERENCES region(region_key)` and could
+restore against a different `region`. The functions pin their search path to
+`pg_catalog`, and a test suspends under a search path that includes `dim` to
+prove the stashed text is still qualified.
+
+Transform 004 now runs in about three seconds, including the index maintenance
+described below.
+
+## 2026-09-12 · The index that matters is on the side Postgres does not index
+
+Postgres indexes the *referenced* side of a foreign key automatically, because it
+has to be a primary key or unique. It never indexes the *referencing* side.
+`fact.claim.idpol` references `fact.exposure` and had no index.
+
+No query that reads claims in bulk notices. Anything that removes a policy-year
+does, because deleting a row from `fact.exposure` must confirm no claim still
+references it, and without an index that check is a sequential scan of
+`fact.claim` for every row deleted. Measured by deleting every claim-free
+policy-year, one run each:
+
+| | Total | Foreign-key trigger |
+|---|---|---|
+| without `claim_idpol_idx` | 328,607 ms | 328,282 ms over 643,953 calls |
+| with `claim_idpol_idx` | 2,546 ms | 2,299 ms |
+
+Five and a half minutes against two and a half seconds, 129x, and essentially all
+of it is the trigger at 0.51 ms a row. The mart is rebuilt by TRUNCATE, which
+skips the check, so today's pipeline never pays this. It is the cost waiting for
+the first person who corrects one region with a DELETE. A test now fails if any
+foreign key into a fact table lacks an index on its referencing column.
+
+## 2026-09-12 · The same index is 16x faster on one region and useless on another
+
+`exposure_region_key_idx` was added for drilldowns into a single region, and
+measured on the smallest and the largest:
+
+| Region | Share of policies | Without | With |
+|---|---|---|---|
+| R43 | 0.2% | about 9 ms | under 1 ms |
+| R24 | 23.7% | about 16 ms | about 16 ms, no gain |
+
+Reading a quarter of the table costs the same through an index as without one.
+The index is kept because most regions are small, and it is documented as
+helping only for those, rather than as "the drilldown index".
+
+A covering index with `INCLUDE (vehicle_key, exposure, claim_nb)` was measured as
+the obvious next step for the broad case. It bought 13% on R24. It is also 26 MB
+against the plain index's 4.6 MB, 5.8x, because a B-tree deduplicates repeated
+keys, which makes an index over 22 distinct regions very small, and an index with
+INCLUDE columns cannot be deduplicated. Half the size of the table for 13% on one
+query shape. Rejected, and the rejection is written into the migration so that
+nobody adds it back as an obvious improvement.
+
+## 2026-09-12 · Four of five dimension tables had never been analysed
+
+Found while trying to explain why the vehicle foreign-key trigger costs twice
+what the other four do. The plan each trigger runs showed the vehicle lookup as a
+sequential scan and the region lookup as an index scan, which looked like the
+explanation. It was not, but the reason the plans differed was a real finding:
+
+| Dimension | relpages | reltuples |
+|---|---|---|
+| region, area, driver_band, bonus_band | 0 | **-1** |
+| vehicle | 2 | 235 |
+
+`reltuples = -1` means never analysed. Autovacuum analyses a table once its
+modifications pass 50 rows plus 10% of its size, and every rebuild truncates the
+dimensions back to empty. A table of 4 to 22 rows cannot accumulate 50
+modifications between truncates, so autovacuum will never analyse it, and the
+planner had been guessing the size of every small dimension since D1-5. Only
+`dim.vehicle`, at 235 rows, ever crossed the threshold. Transform 004 now
+analyses all five dimensions explicitly, and a test checks each has statistics.
+
+With the region dimension analysed, its lookup switched to a sequential scan as
+well, and the vehicle trigger was still twice the others. So the access path was
+never the explanation. The one stable difference is that `dim.vehicle` is the
+only dimension larger than one page. The load no longer runs per-row triggers,
+so this was not pursued, and it is recorded as observed rather than explained.
+
+## 2026-09-12 · A statistics test that raced autovacuum
+
+The first test for fresh statistics asserted `n_mod_since_analyze = 0` on the
+fact tables, since transform 004 ends with ANALYZE. It failed straight after a
+rebuild. The easy reading was that ANALYZE inside a transaction does not see the
+rows that transaction inserted, which would have meant the statistics were
+wrong and the fix belonged somewhere else entirely.
+
+Checked it directly, inside one transaction: TRUNCATE sets `reltuples` to -1,
+inserting 12,345 rows leaves it at -1, and ANALYZE sets it to exactly 12,345. A
+count that distinctive rules out a stale leftover. In-transaction ANALYZE does
+see the new rows, and the statistics had been correct.
+
+What is wrong is the counter. The INSERT's modifications are reported to the
+statistics system at commit, after the ANALYZE has already reset the counter, so
+it climbs straight back to 678,013. Autovacuum then sees what looks like an
+unanalysed table and re-analyses it about a minute later, at which point the
+counter reads zero. The timestamps show both: the transform's ANALYZE at
+02:08:00, autovacuum's at 02:08:40.
+
+So the test was a race, red for the first minute after a rebuild and green after,
+while the statistics were right throughout. It now checks what the planner
+actually reads, `reltuples` within 1% of the true count and `pg_stats`
+populated, and it passes when run in the same second as the rebuild with the
+counter still at 678,013.
+
+## 2026-09-12 · The plan document regenerates itself
+
+`docs/explain-plans.md` is not a transcript of queries run once by hand. It is
+generated by `scripts/explain_plans.py` from the queries in `sql/explain/`,
+against the committed schema.
+
+Measuring a query without its index relies on DROP INDEX being transactional in
+Postgres: drop it inside a transaction, run EXPLAIN ANALYZE, roll back. The index
+is back before the next run, so both variants are measured from the same final
+schema and nothing has to be rebuilt to show what it was like before. Every run,
+including the DELETEs, is in its own rolled-back transaction and starts from the
+same data. The load comparison reads its INSERT out of transform 004 rather than
+copying it, for the same reason the foreign keys are read from the catalogue.
+
+Generating it is also what showed that sub-second timings are not stable across
+sessions. The narrow-region drilldown measured 11x in the exploratory session and
+16x in the final one; the single-policy claim lookup went from 16x to 44x. So the
+migration comments carry only magnitudes that held in both sessions, and the
+exact numbers live in the document that can be regenerated.

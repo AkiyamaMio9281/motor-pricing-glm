@@ -12,6 +12,13 @@
 -- turns the null into a failed transform. An overlap between two bands is
 -- caught the other way round: the policy matches twice and the primary key on
 -- idpol refuses the duplicate.
+--
+-- Foreign keys on both fact tables are suspended for the insert and restored
+-- straight after, which validates each one with a single set-based query rather
+-- than a trigger per row. On fact.exposure that is 5.7x faster, 10.4 s down to
+-- 1.8 s. The definitions are read from the catalogue and restored exactly, so
+-- migration 004 stays the only place a constraint is defined; see migration 005
+-- for the measurement and for how a forgotten restore is prevented.
 
 TRUNCATE fact.claim, fact.exposure,
          dim.region, dim.area, dim.vehicle, dim.driver_band, dim.bonus_band;
@@ -59,6 +66,8 @@ INSERT INTO dim.bonus_band (bonus_band_key, label, bm_min, bm_max) VALUES
 -- fact.exposure
 -- ---------------------------------------------------------------------------
 
+SELECT meta.suspend_foreign_keys('fact.exposure');
+
 INSERT INTO fact.exposure
 SELECT
     c.idpol,
@@ -76,6 +85,8 @@ LEFT JOIN dim.vehicle v ON (v.veh_brand, v.veh_gas, v.veh_power)
                          = (c.veh_brand, c.veh_gas, c.veh_power)
 LEFT JOIN dim.driver_band db ON c.driv_age    BETWEEN db.age_min AND db.age_max
 LEFT JOIN dim.bonus_band  bb ON c.bonus_malus BETWEEN bb.bm_min  AND bb.bm_max;
+
+SELECT meta.restore_foreign_keys('fact.exposure');
 
 DO $rules$
 DECLARE
@@ -121,10 +132,14 @@ $rules$;
 -- to be priced against, so it cannot enter a frequency model, and in a severity
 -- model it would contribute amounts from policies whose rating factors are
 -- unknown. There is nothing to impute them from.
+SELECT meta.suspend_foreign_keys('fact.claim');
+
 INSERT INTO fact.claim (claim_key, idpol, claim_amount)
 SELECT c.claim_seq, c.idpol, c.claim_amount
 FROM stg.claim_cleaned c
 WHERE EXISTS (SELECT 1 FROM fact.exposure e WHERE e.idpol = c.idpol);
+
+SELECT meta.restore_foreign_keys('fact.claim');
 
 DO $rules$
 DECLARE
@@ -159,3 +174,36 @@ BEGIN
     );
 END;
 $rules$;
+
+-- ---------------------------------------------------------------------------
+-- Finish
+-- ---------------------------------------------------------------------------
+
+-- A suspended foreign key that was never restored would commit silently, and the
+-- fact tables would carry on without their constraints. This raises instead, so
+-- the whole transform rolls back and the constraints come back with it.
+SELECT meta.assert_foreign_keys_restored();
+
+-- Refresh planner statistics inside the same transaction, for the dimensions as
+-- well as the facts.
+--
+-- The facts would be analysed by autovacuum about a minute later. The small
+-- dimensions never would. Autovacuum analyses a table once its modifications
+-- pass 50 rows plus 10% of its size, and every rebuild truncates the dimensions
+-- back to nothing, so a 22-row table cannot accumulate 50 modifications between
+-- truncates. Before this, four of the five dimensions had never been analysed at
+-- all (reltuples -1) and the planner was guessing their sizes. Only dim.vehicle,
+-- at 235 rows, ever crossed the threshold.
+--
+-- ANALYZE inside the transaction does see the rows the transaction inserted.
+-- What it cannot do is zero n_mod_since_analyze for good: the insert's
+-- modification count is reported at commit, after the ANALYZE, so that counter
+-- reads fully stale until autovacuum re-analyses the facts. The statistics are
+-- correct regardless; see tests/test_load_and_indexes.py.
+ANALYZE dim.region;
+ANALYZE dim.area;
+ANALYZE dim.vehicle;
+ANALYZE dim.driver_band;
+ANALYZE dim.bonus_band;
+ANALYZE fact.exposure;
+ANALYZE fact.claim;
