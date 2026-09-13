@@ -738,3 +738,171 @@ identical double, which is what lets the md5 match.
 Load time, connect through validated frame, three runs each: R about 1.4 s,
 Python about 2.2 s. The first Python measurement read 5.8 s because it timed the
 hashing as well; the spans were aligned before comparing.
+
+---
+
+## 2026-09-13 · A weight is not the error. A weight on the count is.
+
+The classic mistake with exposure in a frequency GLM is usually stated as "used
+exposure as a weight instead of an offset". Fitted it every way it can be written,
+on the same frame and the same 38 rating parameters, and that statement turned out
+to be half wrong.
+
+With the *claim rate* as the response and exposure as a prior weight,
+`glm(claim_nb / exposure ~ ..., weights = exposure)` matches the offset model
+coefficient for coefficient, to within 5.3e-08. It is the same model. The error is
+keeping the *count* as the response and adding the weight. That fits claims per
+policy rather than claims per policy-year, and it runs without a warning:
+
+| | Offset | Weight on the count |
+|---|---|---|
+| Exposure-weighted annual frequency | 0.1007, observed 0.1007 | 0.0647, 36% low |
+| Regular fuel against diesel | 1.053 | 0.973 |
+| Brand B12 against B1 | 1.167 | 0.769 |
+
+The fuel effect changes sides. A rate table built from that fit would give a
+discount where the data says to load, and nothing in the fitting output hints at
+it. The fit even looks better by the usual numbers, deviance 126,893 against
+217,287, but prior weights change the likelihood being maximised, so its deviance
+and AIC are not comparable with the unweighted fits at all. The unweighted fits
+share a response and a likelihood and can be compared with each other; the
+weighted one can only be compared on something every specification implies, which
+is why the document leads with the annual frequency each one predicts.
+
+`R/frequency.R` now holds the only frequency fit in the project. It always uses
+the offset, and it checks the balance property that proves it: with a log link,
+an intercept and an offset, fitted claims must sum to observed claims, 36,102.
+A weight on the count cannot pass that check.
+
+## 2026-09-13 · The data rejects proportionality everywhere, not just at the short end
+
+D1-4 measured claims per policy-year falling ninety-fold from the shortest
+exposure band to the longest, and concluded the offset's assumption failed "at
+the short end". Estimating the coefficient on log(exposure) instead of fixing it
+at 1 tests that directly:
+
+| Fit | Coefficient | 95% interval | Standard errors below 1 |
+|---|---|---|---|
+| all policy-years | 0.367 | [0.355, 0.379] | 103 |
+| short exposure removed | 0.399 | [0.386, 0.412] | 90 |
+
+Doubling a policy's exposure multiplies its expected claims by 1.29, not 2.
+Inflating the standard errors by the Pearson dispersion leaves it 98 below 1.
+Removing the 13,603 short-exposure rows barely moves it. The departure from
+proportionality runs through the whole range of exposure, and the rows D1-4
+flagged are not its cause.
+
+The offset is still the pricing model, and that is a decision rather than an
+oversight. Exposure here is the fraction of a year a policy was in force, and a
+policy can stop being in force because it claimed. The data has no dates or
+cancellation reasons, so that cannot be confirmed, but if it happens then exposure
+is partly an outcome, and a model that estimates its coefficient is partly
+learning from the outcome, which would also go a long way to explaining why one
+extra parameter buys 8,157 of deviance. At the moment a policy is priced, its eventual exposure
+is not known, and the rate has to be for a full year. So estimated exposure is a
+diagnostic of the offset's assumption, recorded with its size, and not a rating
+input. It is also not carried into D3 as a competing model, because scoring a
+holdout with each policy's realised exposure would leak the outcome into the
+comparison.
+
+## 2026-09-13 · Correcting D1-4: the short-exposure rows are high-residual, not high-leverage
+
+D1-4 described the 13,603 policies exposed for under a week, 362 claims on 0.03%
+of exposure, as "the precise shape of a high-leverage point", and warned that
+removing them "would improve every diagnostic while changing the answer". The
+first half is right. The second is wrong, and now measured:
+
+| Offset model | All rows | Short exposure removed |
+|---|---|---|
+| Pearson dispersion | 2.648 | 1.951 |
+| Largest change in a key relativity | | 0.45%, regular fuel |
+| Largest change in any coefficient | | 3.8%, region R43 |
+
+The reason is how a Poisson fit weights rows. The IRLS working weight under a log
+link is the fitted mean, and under an offset the fitted mean is proportional to
+exposure. A one-week policy carries about a fiftieth of the weight of a full-year
+policy with the same risk. Its residual can be enormous, 362 observed claims in
+the band against 12 fitted, and it still has almost no say in the coefficients.
+
+The live comments that repeated the claim, in transform 003 and in a test
+docstring, have been corrected in place. The D1-4 entry above is left as written,
+because this log records what was believed when, and a quietly edited entry would
+make it look as if the mistake was never made.
+
+## Open for D2-4: the dispersion depends on the exposure specification
+
+The plan for D2-4 is to compute the Pearson dispersion of the frequency model and
+report whether it is overdispersed. The same data gives very different answers
+depending on how exposure enters:
+
+| Specification | Pearson dispersion |
+|---|---|
+| offset | 2.648 |
+| offset, short exposure removed | 1.951 |
+| log(exposure) estimated | 1.111 |
+
+Most of the apparent overdispersion under the offset is the misfit of the exposure
+relationship, not extra-Poisson variation between policies. Computing the
+statistic on the offset model alone would report strong overdispersion and
+attribute it to the wrong thing. For the offset model's own standard errors the
+2.648 is still the right correction; what it means is the question D2-4 has to
+answer honestly.
+
+## 2026-09-13 · A generated document has to be checked for staleness two ways
+
+`docs/frequency-exposure.md` is written by `R/frequency_exposure.R`, eight fits
+and about ninety seconds, too slow for the test suite. So the document carries what
+it was computed from, and tests check it has not drifted:
+
+- the md5 of the model frame, which changes if the mart is rebuilt differently
+- the rating terms, which change if `FREQUENCY_TERMS` in `R/frequency.R` does
+
+Checking only the md5 would miss the second: change the model formula, forget to
+regenerate, and the committed document describes a model that no longer exists
+while every data check still passes. The script also writes nothing that varies
+between runs, no timestamp and no runtime, so regenerating on unchanged data is a
+byte-for-byte no-op. The first draft printed its runtime at the bottom, which
+would have made every regeneration look like a change.
+
+Two figures from the exploration did not survive into the document, and are
+worth naming so they are not repeated. A probe reported the weight-on-count error
+as 39% low; that compared unweighted averages of per-policy predictions, which is
+not the quantity a rate balances on, and on the exposure-weighted basis the
+figure is 36%. And a draft of the document said a "correctly specified" rate
+balances to observed frequency. Balance is a property of the proportional model,
+not of correctness, and the text now says so.
+
+## 2026-09-13 · Thirteen files had CRLF endings, and the diff was lying about how much changed
+
+Staging this commit showed `sql/transform/003_adjusted.sql` as 131 lines added
+and 122 removed, for an edit to two comments. With `--ignore-cr-at-eol` it was 13
+and 4. The rest was line endings.
+
+The first attempt to survey the repository got the answer wrong. Counting lines
+that end in a carriage return with `grep` in Git Bash reported all 43 tracked
+files as CRLF, because grep on Windows treats the carriage return specially.
+Reading the bytes with `od` showed `R/model_frame.R` ending in a bare `\n` in
+HEAD. A byte-level count in Python gave the real picture: 30 files LF and 13 CRLF
+in HEAD, and in the working tree `DEVLOG.md` had 740 LF lines and 133 CRLF lines
+in the same file.
+
+The 13 were exactly the files edited in earlier commits through
+`pathlib.Path.write_text`, which on Windows translates every newline to CRLF on
+write. Nothing else in the toolchain does that, so the repository had been
+accumulating a second convention one edit at a time.
+
+It was worth more than a cosmetic fix because `scripts/migrate.py` hashes each
+migration's bytes. The preceding commit converted migration 005 to LF, and the
+existing database, built from the CRLF version, was then refused exactly as
+predicted: `refusing to migrate: these files were edited after being applied:
+005_load_and_indexes.sql`, exit 1. Same migration, different bytes.
+
+The fix went in as its own commit, built directly in the index from HEAD's blobs
+so the working tree holding this commit's changes was not touched, and it changes
+nothing but line endings and a new `.gitattributes` setting `* text=auto eol=lf`.
+That normalizes on add and overrides `core.autocrlf` on checkout, which is set to
+`true` in this machine's system Git config. This commit's twelve files were
+checked byte for byte against a backup taken before any of it, and are identical
+apart from their endings.
+
+Edits from Python now write bytes, or pass `newline="\n"`.

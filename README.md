@@ -13,7 +13,7 @@ land; for now it is the setup path.
 | Layer | What | Language | State |
 |---|---|---|---|
 | L1 | Data mart: raw to staging to star schema to segment mart | SQL (Postgres) | through star schema, indexed |
-| L2 | Claim frequency, Poisson GLM with exposure offset | R | model frame in |
+| L2 | Claim frequency, Poisson GLM with exposure offset | R | offset model, exposure analysis |
 | L3 | Claim severity, Gamma GLM on claiming policies only | R | |
 | L4 | Pure premium, gradient boosting baseline, validation | Python | |
 | L5 | Rate relativities, normalization, credibility weighting | Python | |
@@ -75,6 +75,19 @@ provably the same data:
 ```bash
 .venv/Scripts/python scripts/frame.py    # Python fingerprint
 Rscript R/check_frame.R                  # R fingerprint, must match
+```
+
+Every frequency fit goes through `fit_frequency()` in `R/frequency.R`, which
+always uses `offset(log(exposure))` and refuses to return a fit whose claims do
+not balance to the observed total. `R/frequency_exposure.R` fits every other way
+exposure could be written into the model and generates
+`docs/frequency-exposure.md`. The short version: a weight on the claim rate is
+the same model as the offset, a weight on the claim count flips the fuel
+relativity, and the data rejects the proportionality the offset assumes, which is
+kept for pricing anyway and the document says why.
+
+```bash
+Rscript R/frequency_exposure.R   # about 90 s; tests fail if the document goes stale
 ```
 
 Indexes were added only where `EXPLAIN ANALYZE` showed they pay, and one that

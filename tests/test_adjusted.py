@@ -122,7 +122,13 @@ def test_proportionality_fails_at_short_exposure(staged):
 
 
 def test_the_short_exposure_band_is_small_in_exposure_and_not_in_claims(staged):
-    """The shape that makes these rows high-leverage rather than merely rare."""
+    """Small in exposure and not in claims.
+
+    This was first described as the shape of a high-leverage point. It is the
+    shape of a high-residual one: D2-2 found that removing these rows barely
+    moves the frequency relativities, because under an offset a row's weight in
+    the fit is proportional to its exposure.
+    """
     with staged.cursor() as cur:
         cur.execute(
             "SELECT count(*), round(sum(a.exposure_adj)), sum(c.claim_nb) "

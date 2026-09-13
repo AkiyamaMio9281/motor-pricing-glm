@@ -15,8 +15,9 @@
 --
 -- Foreign keys on both fact tables are suspended for the insert and restored
 -- straight after, which validates each one with a single set-based query rather
--- than a trigger per row. On fact.exposure that is 5.7x faster, 10.4 s down to
--- 1.8 s. The definitions are read from the catalogue and restored exactly, so
+-- than a trigger per row. On fact.exposure that is about five times faster, ten
+-- seconds down to two; docs/explain-plans.md carries the measured values. The
+-- definitions are read from the catalogue and restored exactly, so
 -- migration 004 stays the only place a constraint is defined; see migration 005
 -- for the measurement and for how a forgotten restore is prevented.
 

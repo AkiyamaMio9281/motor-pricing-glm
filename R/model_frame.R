@@ -76,3 +76,32 @@ load_frequency_frame <- function(con) {
 
   frame
 }
+
+# md5 over one canonical line per row. scripts/frame.py computes the same hash in
+# Python, and R/check_frame.R documents why each column is formatted as it is.
+canonical_md5 <- function(frame) {
+  lines <- paste(
+    sprintf("%d", frame$idpol),
+    sprintf("%d", frame$claim_nb),
+    sprintf("%.17g", frame$exposure),
+    as.character(frame$area),
+    sprintf("%d", frame$veh_power),
+    sprintf("%d", frame$veh_age),
+    sprintf("%d", frame$driv_age),
+    sprintf("%d", frame$bonus_malus),
+    as.character(frame$veh_brand),
+    as.character(frame$veh_gas),
+    sprintf("%d", frame$density),
+    as.character(frame$region),
+    as.integer(frame$is_short_exposure),
+    as.integer(frame$is_high_claim_count),
+    as.integer(frame$is_exposure_capped),
+    sep = "|"
+  )
+  path <- tempfile(fileext = ".txt")
+  on.exit(unlink(path))
+  connection <- file(path, open = "wb")
+  writeLines(lines, connection, sep = "\n", useBytes = TRUE)
+  close(connection)
+  unname(tools::md5sum(path))
+}

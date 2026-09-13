@@ -94,12 +94,21 @@ BEGIN
     -- a total loss, or a change of insurer, so exposure is partly determined by
     -- the claim rather than preceding it. That is not something a cleaning rule
     -- can fix, and it is not a reason to delete the rows either. 13,603
-    -- policies carry 362 claims, 1% of all claims, on 0.03% of exposure, which
-    -- is exactly the shape of a high-leverage point in a Poisson fit.
+    -- policies carry 362 claims, 1% of all claims, on 0.03% of exposure.
+    --
+    -- This comment originally called that the shape of a high-leverage point.
+    -- D2-2 measured it and it is not: removing these rows moves no key
+    -- frequency relativity by more than half a percent. Under an offset a row's
+    -- working weight in the Poisson fit is proportional to its exposure, so a
+    -- one-week policy carries a fiftieth of a full year's weight. The rows are
+    -- high-residual, and they inflate the Pearson dispersion from 1.95 to 2.65,
+    -- but they are low-influence. See docs/frequency-exposure.md.
     --
     -- The threshold is one week, chosen because it is the band where the
-    -- departure stops being gradual. The flag is what D2 will use to show
-    -- whether the frequency model's coefficients depend on these rows.
+    -- departure is most extreme. D2-2 found the departure is not confined to
+    -- it: the estimated coefficient on log(exposure) is 0.37 on all policy-years
+    -- and still 0.40 with these rows removed. The flag remains useful for
+    -- naming the rows that dominate the residuals.
     SELECT count(*) INTO v_affected
     FROM stg.policy_adjusted WHERE is_short_exposure;
     PERFORM stg.record_rule(
