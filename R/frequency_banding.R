@@ -18,7 +18,8 @@
 # same nine rating factors as the row with the previous policy id, which is what
 # one policy split into several records looks like. A row-level split would put
 # pieces of the same policy on both sides. A group here is a run of consecutive
-# policy ids with identical rating factors.
+# policy ids with identical rating factors, as defined by risk_groups() in
+# R/model_frame.R.
 
 local({
   script <- sub("^--file=", "", grep("^--file=", commandArgs(FALSE), value = TRUE))
@@ -72,11 +73,7 @@ for (v in names(RISK_LOWER)) {
 # Risk groups and the holdout
 # ---------------------------------------------------------------------------
 
-profile_columns <- c("area", "veh_power", "veh_age", "driv_age", "bonus_malus",
-                     "veh_brand", "veh_gas", "density", "region")
-profile <- do.call(paste, c(lapply(frame[profile_columns], as.character), sep = "|"))
-starts_group <- c(TRUE, profile[-1] != profile[-length(profile)])
-frame$risk_group <- cumsum(starts_group)
+frame$risk_group <- risk_groups(frame)
 frame$holdout <- frame$risk_group %% 5 == 0
 
 train <- frame[!frame$holdout, ]

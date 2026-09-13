@@ -105,3 +105,25 @@ canonical_md5 <- function(frame) {
   close(connection)
   unname(tools::md5sum(path))
 }
+
+
+# A risk group is a run of consecutive policy ids with identical rating factors.
+#
+# 14% of rows match the previous policy id on all nine factors, which is one
+# policy recorded as several rows rather than chance. Reassembled, only 102 of
+# 581,535 groups exceed one year of exposure, which is what pieces of a single
+# policy-year would do. Anything that needs independent units uses these groups:
+# the holdout split in R/frequency_banding.R and the cluster-robust standard
+# errors in R/frequency_dispersion.R. Defined once, here.
+RISK_PROFILE_COLUMNS <- c("area", "veh_power", "veh_age", "driv_age", "bonus_malus",
+                          "veh_brand", "veh_gas", "density", "region")
+
+risk_groups <- function(frame) {
+  # "Consecutive" only means something in policy-id order, and a frame that has
+  # been reordered would silently produce different groups.
+  if (is.unsorted(frame$idpol, strictly = TRUE)) {
+    stop("risk_groups() needs the frame in strictly increasing idpol order", call. = FALSE)
+  }
+  profile <- do.call(paste, c(lapply(frame[RISK_PROFILE_COLUMNS], as.character), sep = "|"))
+  cumsum(c(TRUE, profile[-1] != profile[-length(profile)]))
+}

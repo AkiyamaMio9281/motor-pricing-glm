@@ -13,7 +13,7 @@ land; for now it is the setup path.
 | Layer | What | Language | State |
 |---|---|---|---|
 | L1 | Data mart: raw to staging to star schema to segment mart | SQL (Postgres) | through star schema, indexed |
-| L2 | Claim frequency, Poisson GLM with exposure offset | R | offset model, banded terms |
+| L2 | Claim frequency, Poisson GLM with exposure offset | R | offset model, banded terms, robust errors |
 | L3 | Claim severity, Gamma GLM on claiming policies only | R | |
 | L4 | Pure premium, gradient boosting baseline, validation | Python | |
 | L5 | Rate relativities, normalization, credibility weighting | Python | |
@@ -97,7 +97,16 @@ improvement of bands placed on the risk structure.
 ```bash
 Rscript R/frequency_exposure.R   # about 90 s; tests fail if the document goes stale
 Rscript R/frequency_banding.R    # several minutes; same staleness checks
+Rscript R/frequency_dispersion.R # a few minutes
 ```
+
+Standard errors for the frequency model come from `frequency_vcov()`, a sandwich
+estimator clustered by risk group. The Pearson dispersion is 2.4, but nearly half
+of it comes from 0.1% of rows where the exposure relationship misfits; quasi-Poisson
+would widen every standard error by 54% where the clustered sandwich finds 8%.
+`docs/frequency-dispersion.md` judges each dispersion statistic against its own
+simulated distribution rather than against 1, which is how the two textbook
+estimators come to point in opposite directions.
 
 Indexes were added only where `EXPLAIN ANALYZE` showed they pay, and one that
 did not was rejected. `docs/explain-plans.md` holds the plans and is generated,
