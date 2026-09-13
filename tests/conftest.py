@@ -64,3 +64,20 @@ def scalar(conn, sql: str):
     with conn.cursor() as cur:
         cur.execute(sql)
         return cur.fetchone()[0]
+
+
+def r_vector(path: Path, name: str) -> list[str]:
+    """The elements of `NAME <- c(...)` in an R source file, as strings.
+
+    Tests use this to compare constants the R side defines, such as the model's
+    rating terms, with what a generated document says it was computed from.
+    Quoted elements come back without their quotes; bare numbers as written.
+    """
+    import re
+
+    source = path.read_text(encoding="utf-8")
+    block = re.search(rf"^{re.escape(name)}\s*<-\s*c\((.*?)\)\s*$", source, re.S | re.M)
+    assert block, f"could not find {name} <- c(...) in {path.name}"
+    body = re.sub(r"#.*", "", block.group(1))
+    quoted = re.findall(r'"([^"]+)"', body)
+    return quoted if quoted else [t.strip() for t in body.split(",") if t.strip()]

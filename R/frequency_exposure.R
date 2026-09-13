@@ -23,6 +23,7 @@ local({
   here <- if (length(script)) dirname(normalizePath(script)) else "R"
   source(file.path(here, "db.R"))
   source(file.path(here, "model_frame.R"))
+  source(file.path(here, "bands.R"))
   source(file.path(here, "frequency.R"))
 })
 
@@ -44,13 +45,24 @@ frame$exposure_band <- cut(
 )
 long <- frame[!frame$is_short_exposure, ]
 
-rhs <- paste(FREQUENCY_TERMS, collapse = " + ")
+# The rating terms this analysis was run on: the D2-2 specification, with the
+# continuous variables linear. They are fixed here rather than taken from
+# FREQUENCY_TERMS, which moved to banded terms in D2-3. The questions this
+# document answers are about how exposure enters the model, and its relativity
+# table reports per-year slopes that banded terms do not have. D2-3 re-estimates
+# the exposure coefficient on the banded terms, in docs/frequency-banding.md.
+EXPOSURE_ANALYSIS_TERMS <- c(
+  "veh_brand", "veh_gas", "region",
+  "driv_age", "veh_age", "bonus_malus", "log(density)", "veh_power"
+)
+
+rhs <- paste(EXPOSURE_ANALYSIS_TERMS, collapse = " + ")
 with_rhs <- function(lhs, extra = "") stats::as.formula(paste(lhs, "~", rhs, extra))
 
 specs <- list(
   offset = list(
     label = "offset(log(exposure))", role = "pricing model", data = "frame",
-    fit = function(d) fit_frequency(d)),
+    fit = function(d) fit_frequency(d, EXPOSURE_ANALYSIS_TERMS)),
   rate_weight = list(
     label = "claim rate as response, exposure as weight", role = "equivalent", data = "frame",
     fit = function(d) stats::glm(with_rhs("claim_rate"), stats::quasipoisson(), d, weights = exposure),
@@ -69,7 +81,7 @@ specs <- list(
     fit = function(d) stats::glm(with_rhs("claim_nb", "+ log(exposure)"), stats::poisson(), d)),
   offset_long = list(
     label = "offset(log(exposure)), short exposure removed", role = "sensitivity", data = "long",
-    fit = function(d) fit_frequency(d)),
+    fit = function(d) fit_frequency(d, EXPOSURE_ANALYSIS_TERMS)),
   covariate_long = list(
     label = "log(exposure) estimated, short exposure removed", role = "sensitivity", data = "long",
     fit = function(d) stats::glm(with_rhs("claim_nb", "+ log(exposure)"), stats::poisson(), d))

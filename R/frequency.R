@@ -23,8 +23,11 @@
 # moves from 1.053 to 0.973, and brand B12 from 1.167 to 0.769. It runs without a
 # warning.
 #
+# Those figures are from the D2-2 analysis, run on linear rating terms.
+#
 # The data rejects proportionality. Estimated rather than fixed, the coefficient
-# on log(exposure) is 0.37, a hundred standard errors below 1. The offset is kept
+# on log(exposure) is 0.37 on the linear terms and 0.41 on the banded terms now in
+# use, around a hundred standard errors below 1 either way. The offset is kept
 # regardless. Exposure here is the part of a year a policy was in force, and a
 # policy can end early because it claimed: cancelled, written off, moved to
 # another insurer. The data carries no dates or cancellation reasons, so that
@@ -36,10 +39,18 @@
 
 # Area is not in the formula. It is a banding of density, rank correlation 0.976
 # with it, so the two together are near-collinear; density carries the finer
-# information. The continuous terms enter linearly here and are banded in D2-3.
+# information, and stays a single log-linear slope because its decile
+# diagnostics show no curvature to capture.
+#
+# Driver age, vehicle age and bonus-malus enter as the bands in R/bands.R and
+# vehicle power as a factor. docs/frequency-banding.md compares this with linear
+# terms and with equal-exposure decile bands on a holdout of risk groups, under a
+# rule fixed before fitting; this specification had the lowest holdout deviance,
+# and BIC agreed. tests/test_frequency_banding.py fails if these terms stop
+# matching the ones that document chose.
 FREQUENCY_TERMS <- c(
   "veh_brand", "veh_gas", "region",
-  "driv_age", "veh_age", "bonus_malus", "log(density)", "veh_power"
+  "driv_age_band", "veh_age_band", "bonus_malus_band", "log(density)", "factor(veh_power)"
 )
 
 frequency_formula <- function(terms = FREQUENCY_TERMS) {
@@ -49,6 +60,15 @@ frequency_formula <- function(terms = FREQUENCY_TERMS) {
 }
 
 fit_frequency <- function(frame, terms = FREQUENCY_TERMS) {
+  # Band on demand, so every caller gets the same bands from R/bands.R and none
+  # has to remember to apply them first.
+  if (any(grepl("_band\\b", terms)) && !"driv_age_band" %in% names(frame)) {
+    if (!exists("apply_bands", mode = "function")) {
+      stop("banded terms need R/bands.R sourced before R/frequency.R", call. = FALSE)
+    }
+    frame <- apply_bands(frame)
+  }
+
   fit <- stats::glm(frequency_formula(terms), family = stats::poisson(link = "log"),
                     data = frame)
 

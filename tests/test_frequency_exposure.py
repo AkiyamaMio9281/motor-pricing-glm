@@ -8,7 +8,7 @@ stale in two independent ways, and each gets a test:
   the data changed      the frame md5 stamped in the document no longer matches
                         the frame the view serves now
   the model changed     the rating terms printed in the document no longer match
-                        FREQUENCY_TERMS in R/frequency.R
+                        EXPOSURE_ANALYSIS_TERMS in R/frequency_exposure.R
 
 Either failure means: re-run R/frequency_exposure.R and commit the result.
 """
@@ -20,12 +20,12 @@ from pathlib import Path
 
 import pytest
 
-from conftest import scalar
+from conftest import r_vector, scalar
 from frame import canonical_md5, load_frequency_frame
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DOCUMENT = REPO_ROOT / "docs" / "frequency-exposure.md"
-FREQUENCY_R = REPO_ROOT / "R" / "frequency.R"
+EXPOSURE_R = REPO_ROOT / "R" / "frequency_exposure.R"
 
 REGENERATE = "re-run: Rscript R/frequency_exposure.R"
 
@@ -38,10 +38,9 @@ def document() -> str:
 
 
 def terms_in_r_source() -> list[str]:
-    source = FREQUENCY_R.read_text(encoding="utf-8")
-    block = re.search(r"FREQUENCY_TERMS\s*<-\s*c\((.*?)\)\s*\n", source, re.S)
-    assert block, "could not find FREQUENCY_TERMS in R/frequency.R"
-    return re.findall(r'"([^"]+)"', block.group(1))
+    # The exposure analysis is pinned to its own linear terms, not to
+    # FREQUENCY_TERMS, which moved to banded terms in D2-3.
+    return r_vector(EXPOSURE_R, "EXPOSURE_ANALYSIS_TERMS")
 
 
 def test_document_was_generated_from_the_current_frame(staged, document):
@@ -61,7 +60,7 @@ def test_document_was_generated_from_the_current_frame(staged, document):
 def test_document_describes_the_current_rating_terms(document):
     expected = " + ".join(terms_in_r_source())
     assert f"`{expected}`" in document, (
-        f"R/frequency.R now fits {expected!r}, which is not what the document "
+        f"R/frequency_exposure.R now fits {expected!r}, which is not what the document "
         f"describes; {REGENERATE}"
     )
 

@@ -906,3 +906,168 @@ checked byte for byte against a backup taken before any of it, and are identical
 apart from their endings.
 
 Edits from Python now write bytes, or pass `newline="\n"`.
+
+---
+
+## 2026-09-13 · Equal-exposure deciles put the band boundaries in the wrong place
+
+The plan was to band driver age, vehicle age and bonus-malus at equal-exposure
+deciles. Before banding anything, checked where the linear terms of D2-2 actually
+fail, with one-way actual over expected claims. Scored on the holdout, from
+`docs/frequency-banding.md`:
+
+| Group | Holdout claims | Actual over expected, linear terms |
+|---|---|---|
+| driver age 19 | 47 | 1.626 |
+| driver age 20 | 72 | 1.434 |
+| driver age 31 to 35 | 664 | 0.817 |
+| driver age 46 to 50 | 953 | 1.186 |
+| vehicle age 0 | 1,014 | 2.172 |
+| vehicle age 1 | 607 | 0.690 |
+
+Risk changes fastest at the youngest drivers and at new vehicles, and those are
+exactly the places an equal-exposure decile cannot see. Drivers under 21 hold
+0.72% of exposure, so the first driver decile runs from 18 to 29, putting an
+18-year-old in the same band as a 29-year-old. The first vehicle decile merges
+age 0 with age 1. The method spends its resolution where the exposure is, and the
+risk gradient is somewhere else.
+
+So a second banding was built on the risk structure instead: two- and three-year
+bands at the young end, five-year bands through the middle, vehicle age 0 on its
+own, and bonus-malus 50 and 100 on their own as states of the French scale. It was
+kept to 66 parameters against the deciles' 63, so the comparison would be about
+where the boundaries sit rather than how many there are.
+
+On a holdout, scored out of sample:
+
+| Specification | Parameters | Holdout deviance | Against linear |
+|---|---|---|---|
+| linear | 38 | 43,596.8 | |
+| equal-exposure deciles | 63 | 43,165.8 | -431 |
+| risk-structured bands | 66 | 42,707.9 | -889 |
+| risk-structured, vehicle power as a factor | 76 | 42,648.8 | -948 |
+
+The deciles recover less than half of what the same number of parameters buys when
+the boundaries follow the risk. And out of sample they still fail in exactly the
+predicted places: vehicle age 0 reads 1.84 and vehicle age 1 reads 0.56, because
+the band that merges them fits neither.
+
+## 2026-09-13 · The rule came first, and it picked the specification with vehicle power
+
+The choice between specifications was written into the script before any fit ran:
+lowest Poisson deviance on the holdout wins, and BIC on the full data is reported
+as a check rather than a second vote. Adding vehicle power as a factor won by 59 of
+holdout deviance, 0.14%, which is small. BIC picked the same specification, so the
+rule and the check agree, and the small margin is recorded rather than explained
+away.
+
+Two things the chosen model still does not do well, both visible in the holdout
+tables and both left alone. Deciding to fix them after seeing the holdout would be
+choosing bands to fit the test set.
+
+- Driver age 31 to 35 reads 0.915 and 41 to 45 reads 1.077, each a little over
+  two standard errors from 1 on 664 and 927 holdout claims. The mid-age hump is
+  only partly captured.
+- Vehicle power 12 to 15 has 81, 32, 30 and 29 holdout claims, and a separate
+  factor level for each fits them noisily: 14 reads 1.36. Shrinking thin levels
+  towards their neighbours is what credibility weighting is for, and that is D4-4.
+
+## 2026-09-13 · A column of 1.000s that meant nothing
+
+The first run of the banding document printed actual over expected for the chosen
+specification, and every vehicle-age, bonus-malus and vehicle-power row read
+exactly 1.000. It looked like a perfect fit.
+
+It was arithmetic. A Poisson GLM with a log link has one score equation per
+dummy variable, and each one forces fitted claims to equal observed claims within
+that level. The diagnostic groups had been drawn to match the bands, so in sample
+they were bound to read 1 however good or bad the model was. Only the driver-age
+table carried information, because its groups were finer than the bands, and it
+showed 1.149 for 18-year-olds.
+
+Every actual-over-expected table now comes from the holdout: fitted on training
+risk groups, scored on the rest, with the holdout claim count beside each row so
+the noise can be judged. Density is the one exception, read in sample, because it
+is a continuous slope with no levels to reproduce, and the document says why.
+
+## 2026-09-13 · 14% of rows look like pieces of one policy
+
+A holdout is only honest if nothing in it has also been seen in training. The
+policy id is unique in this table, so splitting by id looked safe. Checked anyway,
+by comparing each row with the row holding the previous policy id:
+
+```sql
+-- rows whose nine rating factors equal those of the previous policy id
+lag(ROW(area, veh_power, veh_age, driv_age, bonus_malus,
+        veh_brand, veh_gas, density, region)::text) OVER (ORDER BY idpol)
+```
+
+96,478 rows, 14.2%, match the row before them on all nine factors, down to the
+exact population density. Consecutive ids agreeing on everything is not chance.
+It is what one policy recorded as several rows looks like. A split on the id would
+put different pieces of the same policy on both sides.
+
+The holdout therefore splits by risk group, a run of consecutive ids with identical
+rating factors, every fifth group held out: 116,307 groups and 135,455 rows. In the
+banding document, 181,795 rows sit in a group of two or more.
+
+Two consequences reach beyond this commit.
+
+**D3-2 has a different problem from the one planned.** The plan's pitfall is a
+random row split scattering one policy's several rows across train and test, which
+presupposes repeated policy ids. There are none. The leak that does exist is the
+fragments, which share no id at all, and a split by id would walk straight into it.
+For a gradient boosting model, which can memorise a profile, this is the split that
+matters.
+
+**It may bear on the D2-2 finding.** If one policy-year is cut into several short
+records and a claim lands in only one of them, those fragments would look exactly
+like short exposures carrying too many claims. Some of the non-proportionality
+could be the fragmentation rather than the policies. That is a hypothesis, not a
+result: re-estimating the exposure coefficient on reassembled groups would test it,
+and it has not been done.
+
+## 2026-09-13 · Vehicle age 0: 43% of the relativity goes with short exposure
+
+New vehicles carry the largest relativity in the book, and the shortest exposures,
+a mean of 0.289 of a year against 0.551. On all policy-years the model's band-0
+relativity against band 1 is 3.43. Refitted on exposures of half a year or more it
+is 2.02. On the log scale 43% of the new-car effect disappears once short exposures
+are set aside.
+
+The pricing model is fitted on all policy-years and carries 3.43. Whether a new car
+should pay that or something nearer 2 is a rate-table judgement, and it goes to D4
+recorded as the single relativity most exposed to the non-proportionality D2-2
+measured. Driver age does not have the same problem. The raw frequency of drivers
+aged 18 to 20 against everyone older is 2.49 on all policy-years and 2.16 on
+exposures of half a year or more, a much smaller shift.
+
+## 2026-09-13 · A data-masking bug that one check happened to catch
+
+The first draft of `apply_bands()` took its bound vectors as arguments named
+`veh_age` and `bonus_malus`, and called `band_of(veh_age, veh_age)` inside
+`dplyr::mutate`. Inside mutate a bare name resolves to a data column before a
+function argument, so the call received the column twice.
+
+Tested what that actually does rather than guessing. On three rows that happened to
+be sorted, it returned vehicle-age bands of 0-3, 4-19 and 20+, built from the data
+itself, without any error. On the real frame, where the column is unsorted,
+`band_of()`'s check that bounds are strictly increasing stopped it. The check was
+written for a different reason and was the only thing between the bug and silently
+wrong bands. The arguments are now named `*_lower` and referred to through `.env`,
+and `check_bands()` verifies every band's observed range against its label.
+
+## 2026-09-13 · The exposure analysis keeps its own terms
+
+`R/frequency_exposure.R` took its rating terms from `FREQUENCY_TERMS`, which now
+holds banded terms. Its relativity table reports per-year slopes for driver age and
+vehicle age, which banded terms do not have, so it would have failed, and its
+conclusions belong to the linear specification it was run on. It now pins
+`EXPOSURE_ANALYSIS_TERMS` to that specification, and its staleness test reads that
+constant. On the banded terms the exposure coefficient is 0.411 against 0.367, so
+the D2-2 conclusion survives the change of specification.
+
+Re-running the exposure analysis after the change produced a document byte for byte
+identical to the one committed in D2-2, which is the evidence that pinning the
+terms changed nothing it computes. The banding analysis was also run twice on the
+same frame and produced identical documents both times.
