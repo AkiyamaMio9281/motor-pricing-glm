@@ -13,7 +13,7 @@ land; for now it is the setup path.
 | Layer | What | Language | State |
 |---|---|---|---|
 | L1 | Data mart: raw to staging to star schema to segment mart | SQL (Postgres) | through star schema, indexed |
-| L2 | Claim frequency, Poisson GLM with exposure offset | R | |
+| L2 | Claim frequency, Poisson GLM with exposure offset | R | model frame in |
 | L3 | Claim severity, Gamma GLM on claiming policies only | R | |
 | L4 | Pure premium, gradient boosting baseline, validation | Python | |
 | L5 | Rate relativities, normalization, credibility weighting | Python | |
@@ -41,6 +41,11 @@ Then build the mart, in this order:
 .venv/Scripts/python scripts/transform.py     # build staging from raw
 ```
 
+R on Windows is not on PATH by default. The R scripts run with the full path,
+for example `"C:/Program Files/R/R-4.6.1/bin/Rscript.exe" R/check_frame.R`, and
+Python finds R through `RSCRIPT` if set, then PATH, then the newest install
+under Program Files.
+
 The order matters and is enforced rather than documented. Migrations change
 structure and are safe against an empty database; transforms read one layer and
 rewrite the next, and `transform.py` exits non-zero rather than building a layer
@@ -61,6 +66,16 @@ grain, with five dimensions. Claims are not pre-aggregated: summing exposure
 over a join of the two counts each policy-year once per claim, so aggregate
 claims first. Every transform runs in one transaction, and a failed rebuild
 leaves the previous good tables in place.
+
+Both modelling languages read one view, `model.frequency_frame`, and do no
+joins of their own. A test renders every row in R and in Python and requires
+identical md5s, so the frequency GLM and the Python benchmark are fitted on
+provably the same data:
+
+```bash
+.venv/Scripts/python scripts/frame.py    # Python fingerprint
+Rscript R/check_frame.R                  # R fingerprint, must match
+```
 
 Indexes were added only where `EXPLAIN ANALYZE` showed they pay, and one that
 did not was rejected. `docs/explain-plans.md` holds the plans and is generated,
@@ -98,7 +113,8 @@ migrations/   versioned SQL, applied in filename order, never edited once applie
 scripts/      loaders, the migration runner, shared connection settings
 sql/transform/  re-runnable layer builds, applied by scripts/transform.py
 sql/explain/    queries measured by scripts/explain_plans.py
-sql/          ad-hoc analysis queries and the R connection helper
+sql/          ad-hoc analysis queries
+R/            R side: connection, model frame, GLMs
 tests/        pytest
 figures/      generated diagnostics, not committed
 exports/      generated Excel and Power BI extracts, not committed

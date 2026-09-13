@@ -209,7 +209,44 @@ magnitudes above held in both.
 
 ## L2 · Frequency model
 
-Not started.
+### Model frame
+
+`model.frequency_frame`, created by `migrations/006_model_frame.sql`. One row
+per policy-year, rating factors as codes, exposure as float8, capped.
+
+| | Value |
+|---|---|
+| Rows | 678,013 |
+| Claims | 36,102 |
+| Exposure-years | 358,360.105463 |
+| Flagged short exposure | 13,603 |
+| Levels: area, vehicle brand, fuel, region | 6, 11, 2, 22 |
+
+R (`R/check_frame.R`) and Python (`scripts/frame.py`) read the view
+independently and hash a canonical rendering of every row. Both produce
+`2ecb69783bcd2387d8e00d6b88335ae2`. The comparison is shown to be sensitive: a
+one-ulp change to a single exposure changes the hash, and rendering exposure
+with 15 significant digits instead of 17 in R makes the test fail.
+
+Load time from connect to validated frame, three runs each:
+
+| Language | Load |
+|---|---|
+| R | about 1.4 s |
+| Python | about 2.2 s |
+
+### RPostgres bigint handling, measured
+
+| Setting | Value beyond int32 | `idpol * 1.5`, ids 1, 3, 5 |
+|---|---|---|
+| default, integer64 | exact | 2, 5, 8 (silently rounded) |
+| `bigint = "integer"` | NA, no warning | correct |
+| `bigint = "numeric"` | exact | correct |
+
+`R/db.R` uses `numeric`, and the frame loader converts `idpol` to integer after
+a lossless check, because a double 100000 renders as `1e+05`.
+
+Model fitting not started.
 
 ## L3 · Severity model
 

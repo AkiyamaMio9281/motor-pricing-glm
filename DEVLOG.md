@@ -625,3 +625,116 @@ sessions. The narrow-region drilldown measured 11x in the exploratory session an
 16x in the final one; the single-policy claim lookup went from 16x to 44x. So the
 migration comments carry only magnitudes that held in both sessions, and the
 exact numbers live in the document that can be regenerated.
+
+---
+
+## 2026-09-12 · One model frame, read by two languages, checked to the byte
+
+The frequency GLM is fitted in R and benchmarked in Python. If each language
+built its own frame from the fact tables, there would be two definitions of a
+policy-year and two sets of numbers that disagree for reasons unrelated to
+modelling. So there is one view, `model.frequency_frame`, and neither loader
+joins anything.
+
+That is easy to claim and easy to check, so it is checked. Both languages render
+every row as canonical text and hash it. On the first run:
+
+```
+R       {"rows": 678013, "claims": 36102, ..., "md5": "2ecb69783bcd2387d8e00d6b88335ae2"}
+Python  {"rows": 678013, "claims": 36102, ..., "md5": "2ecb69783bcd2387d8e00d6b88335ae2"}
+```
+
+Two further tests make sure the equality means something. Moving one exposure
+value to the next representable double changes the hash, so the rendering is
+fine enough to see a one-bit difference. And rendering exposure in R with
+`%.15g` instead of `%.17g` makes the cross-language test fail, so the
+comparison really does compare. That second experiment had a side result: the
+two renderings differ in text on 403,288 of 678,013 rows, but `%.15g` still
+round-trips every value in this data to the same double. Seventeen digits are
+used anyway, because seventeen is what guarantees a round trip for *any* double,
+and fifteen happening to suffice for this portfolio is a property of the data,
+not something to build on.
+
+## 2026-09-12 · Every bigint setting in RPostgres fails silently except one
+
+RPostgres has three ways to bring a Postgres `bigint` into R. Measured all three
+against this database before choosing, which turned out to matter, because the
+first probe pointed at the wrong answer.
+
+| Setting | A value beyond int32 | `idpol * 1.5` for ids 1, 3, 5 |
+|---|---|---|
+| default, `integer64` | exact | **2, 5, 8** |
+| `bigint = "integer"` | **NA, with no warning** | 1.5, 4.5, 7.5 |
+| `bigint = "numeric"` | exact | 1.5, 4.5, 7.5 |
+
+The default multiplies a non-integer and rounds the answer back to an integer64
+without a word, and `is.numeric()` still returns TRUE, so an ordinary type check
+waves it through. Division is fine: `sum(claim_nb) / count(*)` comes back as a
+correct double, which is why this does not show up in the first aggregate
+anyone writes.
+
+The first probe tested only the default against `integer`, and `integer` looked
+like the fix. Testing what it does with a value that does not fit found the
+silent NA. `numeric` is exact to 2^53, nothing in this project is within nine
+orders of magnitude of that, and it is what `R/db.R` uses. It matters beyond the
+one `bigint` column in the frame: Postgres returns `bigint` for `count(*)` and
+for `sum()` over integers, so every ad-hoc aggregate goes through this setting.
+
+## 2026-09-12 · The upstream `1e+05` looks like an R export, and we nearly made our own
+
+`numeric` has its own trap. With `idpol` as a double, `as.character(100000)`,
+`paste(100000)` and `format(100000)` all return `"1e+05"`. `write.csv` writes
+`99999`, `1e+05`, `100001`: only the round number changes form.
+
+That is exactly the malformed id repaired in transform 002. So checked whether it
+explains it. R switches to scientific notation when that is no longer than fixed
+notation, so `100000` becomes `1e+05` but `2100000` stays fixed, because
+`2.1e+06` is just as long. Every multiple of 100,000 in the data:
+
+| id | written upstream | `write.csv` from a double |
+|---|---|---|
+| 100000 | `1e+05` | `1e+05` |
+| 2100000 | `2100000` | `2100000` |
+| 3200000 | `3200000` | `3200000` |
+| 5100000 | `5100000` | `5100000` |
+
+Four for four, and no id that R would abbreviate appears upstream in fixed
+notation. CASdatasets is an R package. The most likely origin of the bad id is
+someone writing a double `idpol` column to CSV from R. That is an inference, not
+a proof, but it is the only explanation checked against every case the data
+offers.
+
+The practical point is closer to home. The fingerprint script originally
+formatted `idpol` with `%.0f` precisely to avoid this, and any later R code that
+pasted an id into a file name or a log line would have reproduced the upstream
+defect in this project's own output. So the loader now converts `idpol` to an
+R integer, after asserting every value fits in int32 with nothing lost, and the
+reason is written next to the conversion.
+
+## 2026-09-12 · Codes, not keys, and one exposure column
+
+Two things are left out of the frame on purpose, and both are guards against a
+formula that runs without complaint.
+
+**Surrogate keys.** `region_key` is an integer from 1 to 22. In a model formula
+an integer is a continuous covariate. Measured on one row per region:
+`model.matrix(~ region_key)` has 2 columns, an intercept and a single slope
+across alphabetically numbered regions, while `model.matrix(~ region)` has 22.
+Neither raises a warning. The frame carries region, area and vehicle as codes, so
+the one-slope version cannot be written against it.
+
+**The uncapped exposure.** Carrying `exposure_raw` beside `exposure` would put
+`offset(log(exposure_raw))` one typo away. The frame has one exposure column,
+the modelling one; the raw value stays in `fact.exposure` for anyone who wants
+it on purpose.
+
+On the Python side the matching trap was the column type. Postgres `numeric`
+arrives through psycopg as `decimal.Decimal`, and pandas stores a column of
+Decimals as `object` dtype. The view casts exposure to `double precision`, so
+both languages receive a float and neither has a conversion to remember. Postgres
+writes float8 as the shortest text that round-trips, so both parse it to the
+identical double, which is what lets the md5 match.
+
+Load time, connect through validated frame, three runs each: R about 1.4 s,
+Python about 2.2 s. The first Python measurement read 5.8 s because it timed the
+hashing as well; the spans were aligned before comparing.

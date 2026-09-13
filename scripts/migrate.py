@@ -38,7 +38,7 @@ MIGRATIONS_DIR = REPO_ROOT / "migrations"
 # Dropped by --reset. meta is excluded on purpose: the bookkeeping table is
 # truncated rather than dropped so that the schema itself never depends on a
 # migration having created it.
-PROJECT_SCHEMAS = ("raw", "stg", "dim", "fact", "mart")
+PROJECT_SCHEMAS = ("raw", "stg", "dim", "fact", "mart", "model")
 
 BOOTSTRAP = """
 CREATE SCHEMA IF NOT EXISTS meta;
