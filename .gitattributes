@@ -1,0 +1,11 @@
+# Every text file in this repository is stored and checked out with LF endings.
+#
+# The repository briefly had both. Files edited from Python on Windows came out
+# CRLF and everything else stayed LF, so a two-line change could show as a
+# whole-file rewrite, and one DEVLOG ended up with both endings in the same file.
+#
+# It matters for more than diffs. scripts/migrate.py records the sha256 of each
+# migration's bytes, so the same migration checked out with different line
+# endings would be refused as edited-after-apply. eol=lf overrides core.autocrlf,
+# so every clone gets the bytes the hashes were taken from.
+* text=auto eol=lf
