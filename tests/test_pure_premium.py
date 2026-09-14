@@ -9,61 +9,67 @@ import pytest
 
 import pure_premium as pp
 from conftest import scalar
-from frame import canonical_md5, load_frequency_frame
+from frame import canonical_md5
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DOCUMENT = REPO_ROOT / "docs" / "pure-premium.md"
 REGENERATE = "re-run: .venv/Scripts/python scripts/pure_premium_report.py"
 
-RUN = pp.Run("synthetic", "0" * 32, "priced_claim_nb", 1000.0, 1.5)
+RUN = pp.Run("synthetic", "0" * 32, "priced_claim_nb", 1000.0, 1.5, "all")
 
 
 @pytest.fixture
 def consistent():
-    frame = pd.DataFrame({
+    return pd.DataFrame({
         "exposure": [0.5, 1.0, 0.25, 1.0],
         "claims_per_year": [2.0, 1.0, 4.0, 1.0],
         "priced_claim_nb": [1, 1, 1, 1],
         "capped_amount_per_claim": [100.0, 200.0, 100.0, 200.0],
+        "capped_loss": [100.0, 200.0, 100.0, 200.0],
         "incurred_loss": [150.0, 300.0, 150.0, 300.0],
+        "trained": [True, True, True, True],
     })
-    return frame, 600.0
 
 
 def test_a_consistent_frame_assembles_and_balances(consistent):
-    frame, capped_losses = consistent
-    result = pp.assemble(RUN, frame, capped_losses)
+    result = pp.assemble(RUN, consistent)
     assert result.off_balance == pytest.approx(1)
-    assert result.frame["expected_loss"].sum() == pytest.approx(frame["incurred_loss"].sum())
+    assert result.frame["expected_loss"].sum() == pytest.approx(consistent["incurred_loss"].sum())
     assert list(result.frame["amount_per_year"]) == pytest.approx([300, 300, 600, 300])
 
 
+def test_checks_and_rebalancing_use_only_the_training_rows(consistent):
+    held_out = pd.DataFrame({
+        "exposure": [1.0], "claims_per_year": [1.0], "priced_claim_nb": [7], "capped_amount_per_claim": [200.0],
+        "capped_loss": [9000.0], "incurred_loss": [50000.0], "trained": [False],
+    })
+    result = pp.assemble(RUN, pd.concat([consistent, held_out], ignore_index=True))
+    assert result.off_balance == pytest.approx(1)
+    assert result.frame["amount_per_year"].iloc[-1] == pytest.approx(300)
+
+
 def test_expected_claims_passed_as_claims_per_year_are_refused(consistent):
-    frame, capped_losses = consistent
-    frame["claims_per_year"] = frame["exposure"] * frame["claims_per_year"]
+    consistent["claims_per_year"] = consistent["exposure"] * consistent["claims_per_year"]
     with pytest.raises(pp.BasisError, match="claims per policy-year"):
-        pp.assemble(RUN, frame, capped_losses)
+        pp.assemble(RUN, consistent)
 
 
 def test_a_severity_that_already_carries_the_load_is_refused(consistent):
-    frame, capped_losses = consistent
-    frame["capped_amount_per_claim"] *= RUN.large_loss_load
+    consistent["capped_amount_per_claim"] *= RUN.large_loss_load
     with pytest.raises(pp.BasisError, match="without the large-loss load"):
-        pp.assemble(RUN, frame, capped_losses)
+        pp.assemble(RUN, consistent)
 
 
 def test_a_load_that_does_not_match_the_claims_is_refused(consistent):
-    frame, capped_losses = consistent
     with pytest.raises(pp.BasisError, match="large-loss load"):
-        pp.assemble(RUN._replace(large_loss_load=1.3), frame, capped_losses)
+        pp.assemble(RUN._replace(large_loss_load=1.3), consistent)
 
 
 def test_rebalancing_absorbs_a_small_gap_and_refuses_a_large_one(consistent):
-    frame, _ = consistent
     per_year = pd.Series([300.0, 300.0, 600.0, 300.0])
-    assert pp.loss_off_balance(frame, per_year * 1.005) == pytest.approx(1 / 1.005)
+    assert pp.loss_off_balance(consistent, per_year * 1.005) == pytest.approx(1 / 1.005)
     with pytest.raises(pp.BasisError, match="off-balance factor"):
-        pp.loss_off_balance(frame, per_year * 1.02)
+        pp.loss_off_balance(consistent, per_year * 1.02)
 
 
 @pytest.fixture(scope="module")
@@ -77,7 +83,7 @@ def runs(staged):
 
 @pytest.fixture(scope="module")
 def policies(runs):
-    return load_frequency_frame(runs)
+    return pp.load_policies(runs)
 
 
 @pytest.fixture(scope="module")

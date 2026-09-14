@@ -15,7 +15,6 @@ import psycopg
 
 import pure_premium as pp
 from db import dsn
-from frame import load_frequency_frame
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DOCUMENT = REPO_ROOT / "docs" / "pure-premium.md"
@@ -42,27 +41,26 @@ def require(condition: bool, message: str) -> None:
 
 def main() -> None:
     with psycopg.connect(dsn()) as conn:
-        policies = load_frequency_frame(conn)
+        policies = pp.load_policies(conn)
         priced = pp.pure_premium(conn, pp.PRICING_RUN, policies)
-        reported_run, reported, capped_losses = pp.load_run(conn, REPORTED_RUN, policies)
+        reported_run, reported = pp.load_run(conn, REPORTED_RUN, policies)
         with conn.cursor() as cur:
             cur.execute("SELECT run, term, estimate FROM model.glm_coefficient WHERE model = 'frequency'")
             coefficients = {(run, term): estimate for run, term, estimate in cur.fetchall()}
             cur.execute(
-                "SELECT idpol, sum(least(claim_amount, %s))::float8, count(*) FILTER (WHERE claim_amount > %s) "
-                "FROM fact.claim GROUP BY idpol",
-                (priced.run.large_loss_cap, priced.run.large_loss_cap),
+                "SELECT idpol, count(*) FILTER (WHERE claim_amount > %s) FROM fact.claim GROUP BY idpol",
+                (priced.run.large_loss_cap,),
             )
-            per_policy = pd.DataFrame(cur.fetchall(), columns=["idpol", "capped_loss", "large_claims"])
+            per_policy = pd.DataFrame(cur.fetchall(), columns=["idpol", "large_claims"])
 
     try:
-        pp.assemble(reported_run, reported, capped_losses)
+        pp.assemble(reported_run, reported)
         reported_refusal = None
     except pp.BasisError as exc:
         reported_refusal = str(exc)
     require(reported_refusal is not None, "the reported-claims run was not refused")
 
-    f = priced.frame.merge(per_policy, on="idpol", how="left").fillna({"capped_loss": 0.0, "large_claims": 0})
+    f = priced.frame.merge(per_policy, on="idpol", how="left").fillna({"large_claims": 0})
     run = priced.run
     load = run.large_loss_load
     losses = f["incurred_loss"].sum()
@@ -71,7 +69,7 @@ def main() -> None:
     severity = f["capped_amount_per_claim"]
 
     claims_ratio = pp.check_claims_per_year(f, run.frequency_response)
-    severity_ratio = pp.check_capped_amount_per_claim(f, capped_losses)
+    severity_ratio = pp.check_capped_amount_per_claim(f)
     raw_total_ratio = (exposure * claims_per_year * severity * load).sum() / losses
 
     bases = {

@@ -15,7 +15,7 @@ land; for now it is the setup path.
 | L1 | Data mart: raw to staging to star schema to segment mart | SQL (Postgres) | through star schema, indexed |
 | L2 | Claim frequency, Poisson GLM with exposure offset | R | offset model, banded terms, robust errors |
 | L3 | Claim severity, Gamma GLM on claiming policies only | R | capped Gamma, terms chosen, diagnostics |
-| L4 | Pure premium, gradient boosting baseline, validation | Python | pure premium assembled on priced claims |
+| L4 | Pure premium, gradient boosting baseline, validation | Python | pure premium on priced claims, holdout by risk group |
 | L5 | Rate relativities, normalization, credibility weighting | Python | |
 | L6 | Excel rate workbook and Power BI report | Python, Power BI | |
 
@@ -101,8 +101,9 @@ Rscript R/frequency_dispersion.R # a few minutes
 Rscript R/severity_population.R  # a couple of minutes
 Rscript R/severity_large_losses.R
 Rscript R/model_diagnostics.R    # writes the figures in docs/figures/
-Rscript R/export_predictions.R   # about 90 s; GLM output into model.glm_prediction
+Rscript R/export_predictions.R   # about 3 min; six GLM runs into model.glm_prediction
 .venv/Scripts/python scripts/pure_premium_report.py
+.venv/Scripts/python scripts/holdout_report.py
 ```
 
 Pure premium is assembled in Python from the GLM predictions R writes to Postgres, with
@@ -117,6 +118,16 @@ reported. That choice is not a level adjustment: 77.3% of the claims reported on
 vehicles have no amount, and the new-car relativity is 3.43 on reported claims and
 0.98 on priced ones. The data cannot say what an unpriced claim costs, and the
 document sets out both readings.
+
+Validation holds out every fifth risk group, not a hashed fifth of policy ids. IDpol is unique,
+so a split on it is a row split, and it scatters pieces of one policy-year across both
+sides. `docs/holdout-split.md` measures the cost on rows both splits hold out: the
+pieces share their reported claim counts, 1,828 groups where every piece reports a claim
+against 105 expected, and a model that remembers exact profiles gains up to half of
+what all the rating factors achieve from that leak on `ClaimNb`. Priced claims are
+rarely shared, 51 groups against 35, and on them there is no leak. Both splits live in
+one view, `model.holdout`, and the GLM runs used for validation are fitted on its
+training rows.
 
 The pricing severity model is `fit_pricing_severity()`: claims capped at 34,377, the
 99.5th percentile, with the 25.3% of losses above it restored by a flat load of

@@ -137,3 +137,16 @@ add_policy_losses <- function(con, frame) {
   frame$incurred_loss <- losses$incurred_loss
   frame
 }
+
+add_holdout <- function(con, frame) {
+  holdout <- DBI::dbGetQuery(con, "SELECT idpol, risk_group, risk_group_holdout, idpol_holdout FROM model.holdout ORDER BY idpol")
+  if (!identical(as.integer(holdout$idpol), frame$idpol)) {
+    stop("model.holdout does not match the frame row for row", call. = FALSE)
+  }
+  if (!identical(as.integer(holdout$risk_group), as.integer(risk_groups(frame)))) {
+    stop("model.holdout's risk groups differ from risk_groups()", call. = FALSE)
+  }
+  frame$risk_group_holdout <- holdout$risk_group_holdout
+  frame$idpol_holdout <- holdout$idpol_holdout
+  frame
+}

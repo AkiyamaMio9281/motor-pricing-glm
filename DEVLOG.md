@@ -1576,3 +1576,100 @@ which by default does not report a file that is already tracked, and both PNGs a
 tracked, so it could never fail. It now passes `--no-index`, and also requires
 `git ls-files` to know both figures. With the extra rule it fails, and with a figure
 removed from the index it fails.
+
+---
+
+## 2026-09-14 · A split by IDpol is a split by row, so the planned fix would have fixed nothing
+
+The plan's pitfall for this commit was a random row split scattering one policy's
+several rows across training and holdout, fixed by splitting on IDpol. IDpol is unique
+in this frame, so a split on it is a row split, and D2-3 already found the real
+problem: 14% of rows are pieces of a policy-year recorded under consecutive ids with
+identical rating factors.
+
+Both splits are now one view, `model.holdout`, read by R and Python:
+
+- `risk_group_holdout`: every fifth risk group, a run of consecutive ids with the same
+  nine rating factors. It reproduces D2-3's holdout exactly, 116,307 groups and
+  135,455 rows, and `R/export_predictions.R` stops unless its groups equal
+  `risk_groups()` in R. A test rebuilds them in Python as well.
+- `idpol_holdout`: a fifth of rows by an md5 hash of the id, the split the plan named.
+  A test recomputes the hash in Python for every row.
+
+Under the IDpol split, 29,930 held-out rows have another piece of their risk group in
+training, 14.7% of held-out exposure. The risk-group split has none, and a test holds
+it to that.
+
+## 2026-09-14 · Pieces of one policy-year share their claim counts, not their amounts
+
+Before measuring any leak, the question was what a piece in training could reveal
+about a piece held out. If pieces were separate periods they would claim
+independently. Expected counts use each piece's Poisson probability of a claim.
+
+| Groups of two or more pieces where every piece has a claim | Observed | Expected if independent |
+|---|---|---|
+| reported claims | 1,828 | 105.3 |
+| priced claims | 51 | 34.6 |
+
+Reported counts are shared, 17 times as often as independence allows, and 1,707 of the
+1,828 groups have no amount on any piece. It looks like one claim count written onto
+every piece of a policy-year, with the amount, where there is one, on a single piece.
+
+That changes D3-1's picture. Counting each such group's claims once removes 1,959 of
+the 9,658 claims without an amount, 20.3%, and 1,344 of the 4,024 on new vehicles,
+33.4%. New vehicles are fragmented more: 37.8% of their risk groups have two or more
+pieces, against 13.0% for older vehicles. That part of the unpriced claims looks like a
+repeated count, not a missing cost, which leans towards the priced basis D3-1 chose
+without settling the rest.
+
+## 2026-09-14 · The leak is real for ClaimNb and absent for priced claims
+
+A GLM with 76 parameters cannot remember a policy, so it cannot show a leak. The
+measurement uses a memoriser instead: the GLM's prediction times the
+credibility-weighted actual over expected of training rows with exactly the same nine
+factors, (claims + k) / (expected + k). Both splits are scored on the 27,106 rows they
+both hold out, so outcomes are identical and only the training rows differ.
+
+| Deviance handed to the memoriser by the IDpol split | k = 0.5 | k = 2 | k = 8 |
+|---|---|---|---|
+| reported claims | 273.1 | 114.7 | 35.4 |
+| priced claims | -4.2 | -0.4 | 0.0 |
+
+On reported claims that is 7% to 52% of everything the rating factors gain over a
+constant on the same rows, 528.9. On the IDpol holdout, at k = 2, the gain is 17.59 per
+1,000 rows with a piece in training against 1.49 on the rest, which is the repeated count
+being read back. On priced claims there is nothing to read. So the pitfall the plan
+predicted exists, and it lives in `ClaimNb`, the claim count this dataset provides. The pricing basis chosen in D3-1 happens to avoid it. The risk-group
+split is used anyway: it was fixed in D2-3, before any of this was measured.
+
+Not blind in one respect: the memoriser and its k values were first tried in a
+prototype on the all-rows GLM predictions, which gave 272.7, 114.6 and 35.3. The table
+above is from GLMs fitted on each split's own training rows, by the committed scripts.
+
+## 2026-09-14 · Two sets of metrics on two holdouts measured one claim
+
+The plan said to report metrics for both splits and read their difference as the size
+of the leak. For the pricing GLM:
+
+| Priced claims, own holdout | Risk-group split | IDpol split |
+|---|---|---|
+| frequency deviance against constant | 4.91% lower | 4.85% lower |
+| capped losses, actual over expected | 1.005 | 1.006 |
+| recorded losses, actual over expected | 0.977 | 1.244 |
+| recorded, without the largest claim | 0.977 | 0.886 |
+
+The largest claim, 4,075,401, fell in the IDpol holdout. Read split against split, one
+claim would have passed for a leak worth 0.27 of recorded A/E, on a basis where there
+is no leak at all. Different holdouts differ by what they drew, which is why the leak is
+measured on shared rows, and why D3-5 will show capped losses beside recorded ones.
+
+## 2026-09-14 · GLM runs fitted on training rows
+
+`R/export_predictions.R` now writes six runs: priced and reported claims, each on all
+rows and on the training rows of each split. Migration 009 adds `trained_on` to
+`model.glm_run`. `pure_premium()` runs its unit checks and computes its off-balance
+factor on the rows a run was fitted to, 0.999775 for the validation run
+`priced_claims_risk_group_split`, and applies it to every row. Checked on all rows
+instead, the claims balance fails at 0.9991, and a test asserts that it does, so the
+training mask cannot quietly become every row. The D3-1 document regenerates
+byte-identical on the changed code.
