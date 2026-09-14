@@ -1436,3 +1436,125 @@ The figures are committed under `docs/figures/`. R's png device wrote identical 
 for identical input across separate sessions on this machine, so, with the
 randomised residuals seeded, regenerating produces no diff; the document and both
 PNGs were checked across two runs.
+
+---
+
+## 2026-09-14 · The largest relativity in the book was made of claims with no amount
+
+D2-5 left a choice for this commit: fit the frequency side of pure premium on the
+36,102 reported claims or on the 26,444 that carry an amount. It was decided by
+definition, before fitting anything: pure premium predicts recorded losses, the only
+cost in the data, and every validation metric in D3 compares with them, so frequency
+counts priced claims. `fit_pricing_frequency()` fits the same terms on
+`priced_claim_nb`, from a new view, `model.policy_loss`.
+
+Then both versions were fitted, to see what the choice does.
+
+| Frequency relativity | Reported claims | Priced claims |
+|---|---|---|
+| vehicle age 0 against 1 | 3.431 | 0.982 |
+| regular fuel against diesel | 1.076 | 0.859 |
+
+77.3% of the claims reported on new vehicles have no amount, against 16% to 20% in
+every other vehicle-age group. The new-car effect, which D2-3 recorded as the largest
+relativity in the book and traced partly to short exposures, disappears on claims
+that carry an amount. Fuel reverses.
+
+This is the most consequential number in the project so far, and the data cannot say
+which side is right. If an unpriced claim cost nothing, a model of reported claims
+charges new vehicles about three times too much. If unpriced claims are real losses
+whose amounts are missing or not yet settled, recorded losses leave most of the
+new-vehicle cost out and the priced model undercharges them by about as much. The
+priced basis is used because it is the only one that can be checked against anything.
+The vehicle-age bands were chosen on reported claims, with band 0 kept separate
+because risk changed fastest there, and on priced claims it does not; that goes to
+the rate table with both relativities.
+
+## 2026-09-14 · Three units, and a rebalancing step that would have hidden three bugs
+
+The plan for this commit said the danger is units: frequency is claims per
+policy-year, severity is amount per claim, and their product is loss per policy-year,
+and a mistake between them runs without an error. The three are now columns with
+those names, `claims_per_year`, `capped_amount_per_claim` and `amount_per_year`, and
+`scripts/pure_premium.py` checks each against the data before multiplying:
+
+- exposure times `claims_per_year` must equal priced claims, to 1e-6. If R had
+  exported `fitted()`, expected claims for the observed exposure, this fails.
+- priced claims times `capped_amount_per_claim` must be within 1% of capped losses. A
+  severity that already carries the large-loss load fails at 1.34.
+- exposure times `amount_per_year` must be within 1% of recorded losses, and is then
+  rebalanced to them exactly. The off-balance factor is 0.999863.
+
+The 1% was fixed before the first run. The question behind it was what an automatic
+rebalance does to a units error, so every tempting mistake was assembled, rebalanced
+to recorded losses, and compared with the chosen basis:
+
+| Basis | Total before rebalancing | After: exposure under 0.1 | After: vehicle age 0 |
+|---|---|---|---|
+| exposure left out of the loss sum | 2.060 | 8.46 | 1.69 |
+| exposure applied twice | 0.744 | 0.09 | 0.71 |
+| reported claims | 1.379 | 1.14 | 3.19 |
+| large-loss load left out | 0.747 | 1.00 | 1.00 |
+
+After rebalancing every total is right. A missing flat load is genuinely harmless,
+because it is the same kind of factor as the rebalance. The other three move money
+between policies, and a Gini or lift chart would score them as models, not flag them
+as bugs. An off-balance step without a tolerance is the place where a units error goes
+to hide; this one would refuse all four.
+
+## 2026-09-14 · R hands predictions to Python through Postgres, bit for bit
+
+The GLMs live in R and the validation in Python. Rather than refit in Python or pass
+a CSV, `R/export_predictions.R` writes the two frequency runs, the shared severity
+prediction and all coefficients to `model.glm_prediction` and `model.glm_coefficient`,
+with the frame md5, cap and load in `model.glm_run`. It reads the predictions back and
+stops unless the doubles are identical, so the COPY path is known to be lossless
+rather than assumed.
+
+`model.glm_prediction` has no foreign key to `fact.exposure`. Transform 004 truncates
+that table on every rebuild, and a reference into it would make the rebuild fail.
+Staleness is checked instead where it matters: `pure_premium()` recomputes the frame
+md5 and refuses predictions fitted on a different frame, and a test proves it does.
+
+Migration 008 was edited twice after it was first applied locally, to add the
+coefficient table and to align a column, each time followed by `migrate.py --reset`
+and a rebuild. The freeze applies from the commit onwards.
+
+A test ties the export to D2-3: the reported-claims run's band 0 relativity, computed
+from the stored coefficient, must equal the 3.43 in `docs/frequency-banding.md`.
+
+## 2026-09-14 · A correlation of -0.96 that was arithmetic, and a sentence about the annual rate that was wrong
+
+Exploring the unpriced claims by region gave a correlation of -0.96 across the 22
+regions between their unpriced share and the ratio of the two frequency models, and
+the first draft of the report used it as evidence. The script's assertion on it
+stopped the first run: the report computed the ratio the other way up, so the sign was
+wrong. Looking closer, the number was not evidence in either direction. A Poisson fit
+balances claims within every level of a rating factor, so in-sample each model prices a
+region at its own claim count, and computed from totals the correlation is exactly -1.
+It was the unpriced share restated. The document now gives the regional range and says
+the price columns are consequences of the share, not a second finding. The
+relativities are the part that is estimated, with the other factors held fixed.
+
+The draft also said the partial-year gap below leaves the annual rate unaffected
+because a new policy is priced for a full year. It does not: the fitted rate pools
+short and full policy-years, and full years run at 0.83 of their expected claims.
+Rewritten before the document was generated from it.
+
+## 2026-09-14 · Claims on short policy-years are larger, not only more frequent
+
+Pro-rata expected loss against recorded experience, in-sample, by exposure:
+
+| Exposure | Claims A/E | Capped losses A/E | Claims above the cap per 1,000 claims |
+|---|---|---|---|
+| under 0.1 | 1.94 | 2.85 | 12.9 |
+| a full year | 0.83 | 0.70 | 3.0 |
+
+D2-2 measured the extra claims. The extra cost per claim is new: capped losses on the
+shortest policy-years are 2.85 times expected against 1.94 for their claims, and
+claims above the cap are four times as common. A policy that ends because of a costly
+claim, a write-off, would produce both, which is the explanation D2-2
+proposed. There are still no dates or cancellation reasons to confirm it. Exposure is
+not a rating factor, so unlike the vehicle-age and regional ratios these are not
+balanced by construction. Calibration by exposure in D3-5 will show this gap for any
+model that prices pro rata.

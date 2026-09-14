@@ -53,13 +53,13 @@ FREQUENCY_TERMS <- c(
   "driv_age_band", "veh_age_band", "bonus_malus_band", "log(density)", "factor(veh_power)"
 )
 
-frequency_formula <- function(terms = FREQUENCY_TERMS) {
+frequency_formula <- function(terms = FREQUENCY_TERMS, response = "claim_nb") {
   stats::as.formula(paste(
-    "claim_nb ~", paste(terms, collapse = " + "), "+ offset(log(exposure))"
+    response, "~", paste(terms, collapse = " + "), "+ offset(log(exposure))"
   ))
 }
 
-fit_frequency <- function(frame, terms = FREQUENCY_TERMS) {
+fit_frequency <- function(frame, terms = FREQUENCY_TERMS, response = "claim_nb") {
   # Band on demand, so every caller gets the same bands from R/bands.R and none
   # has to remember to apply them first.
   if (any(grepl("_band\\b", terms)) && !"driv_age_band" %in% names(frame)) {
@@ -69,7 +69,7 @@ fit_frequency <- function(frame, terms = FREQUENCY_TERMS) {
     frame <- apply_bands(frame)
   }
 
-  fit <- stats::glm(frequency_formula(terms), family = stats::poisson(link = "log"),
+  fit <- stats::glm(frequency_formula(terms, response), family = stats::poisson(link = "log"),
                     data = frame)
 
   if (!fit$converged) {
@@ -79,7 +79,7 @@ fit_frequency <- function(frame, terms = FREQUENCY_TERMS) {
   # With a log link, an intercept and an offset, the score equation for the
   # intercept forces fitted claims to sum to observed claims. If they do not,
   # the exposure term is not an offset, whatever the formula looks like.
-  observed <- sum(frame$claim_nb)
+  observed <- sum(frame[[response]])
   gap <- abs(sum(stats::fitted(fit)) - observed)
   if (gap > 1e-6 * observed) {
     stop(sprintf("fitted claims %.3f do not balance to observed %d",
@@ -119,6 +119,10 @@ frequency_vcov <- function(fit, cluster = NULL) {
   v <- bread %*% crossprod(score) %*% bread
   dimnames(v) <- list(colnames(X), colnames(X))
   v
+}
+
+fit_pricing_frequency <- function(frame) {
+  fit_frequency(frame, FREQUENCY_TERMS, "priced_claim_nb")
 }
 
 # Claims per policy-year for each row, as if priced for a full year.

@@ -127,3 +127,13 @@ risk_groups <- function(frame) {
   profile <- do.call(paste, c(lapply(frame[RISK_PROFILE_COLUMNS], as.character), sep = "|"))
   cumsum(c(TRUE, profile[-1] != profile[-length(profile)]))
 }
+
+add_policy_losses <- function(con, frame) {
+  losses <- DBI::dbGetQuery(con, "SELECT idpol, priced_claim_nb, incurred_loss FROM model.policy_loss ORDER BY idpol")
+  if (!identical(as.integer(losses$idpol), frame$idpol)) {
+    stop("model.policy_loss does not match the frame row for row", call. = FALSE)
+  }
+  frame$priced_claim_nb <- losses$priced_claim_nb
+  frame$incurred_loss <- losses$incurred_loss
+  frame
+}
