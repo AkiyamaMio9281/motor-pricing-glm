@@ -14,7 +14,7 @@ land; for now it is the setup path.
 |---|---|---|---|
 | L1 | Data mart: raw to staging to star schema to segment mart | SQL (Postgres) | through star schema, indexed |
 | L2 | Claim frequency, Poisson GLM with exposure offset | R | offset model, banded terms, robust errors |
-| L3 | Claim severity, Gamma GLM on claiming policies only | R | |
+| L3 | Claim severity, Gamma GLM on claiming policies only | R | population fixed, terms not yet chosen |
 | L4 | Pure premium, gradient boosting baseline, validation | Python | |
 | L5 | Rate relativities, normalization, credibility weighting | Python | |
 | L6 | Excel rate workbook and Power BI report | Python, Power BI | |
@@ -98,7 +98,16 @@ improvement of bands placed on the risk structure.
 Rscript R/frequency_exposure.R   # about 90 s; tests fail if the document goes stale
 Rscript R/frequency_banding.R    # several minutes; same staleness checks
 Rscript R/frequency_dispersion.R # a few minutes
+Rscript R/severity_population.R  # a couple of minutes
 ```
+
+Severity is fitted through `fit_severity()` on `model.severity_frame`, one row per
+priced claim, and refuses missing or non-positive amounts by name rather than letting
+`glm()` drop them silently. `docs/severity-population.md` measures the larger issue:
+the frequency model counts 36,102 reported claims and only 26,444 have an amount, so
+reported-claim frequency times severity is 36.5% above recorded losses, and the
+unpriced claims are concentrated on newer vehicles and particular regions. Which
+count pure premium uses is decided when pure premium is assembled.
 
 Standard errors for the frequency model come from `frequency_vcov()`, a sandwich
 estimator clustered by risk group. The Pearson dispersion is 2.4, but nearly half

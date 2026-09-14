@@ -1198,3 +1198,130 @@ text; both are now computed from the numbers, and the script stops if the
 estimators ever stop pointing in opposite directions against 1, or if clustered
 errors stop being smaller than the quasi-Poisson rescaling, since the conclusion
 rests on both.
+
+---
+
+## 2026-09-13 · Does a zero-claim policy break a Gamma fit, or vanish from it? Both
+
+The planned pitfall for this commit is fitting severity on zero-claim policies: a
+Gamma model cannot take a zero, and the mistake either errors or silently drops
+rows. Which one it does turned out to depend on a detail that looks cosmetic, whether
+a policy's missing amount was written as 0 or left missing.
+
+| Response built from | Outcome |
+|---|---|
+| all policies, missing amounts as 0 | fails: non-positive values not allowed |
+| all policies, missing amounts left missing | runs; 653,069 of 678,013 rows silently dropped |
+| `claim_nb > 0` only, missing as 0 | fails |
+| `claim_nb > 0` only, missing left missing | runs; 9,116 of 34,060 rows silently dropped |
+
+Written as 0, every version fails. Left missing, every version runs, because
+`glm()`'s default `na.action` removes rows with a missing response before fitting
+and says nothing. The silent versions all end up on the same 24,944 policies, which
+is the correct population, by accident.
+
+The danger in the silent path is not a wrong fit here. It is what the fit never
+reports: restricting to `claim_nb > 0`, which is the standard advice, still handed it
+9,116 policies whose reported claims have no amount, and they disappeared without a
+line of output. That is D1-3's 26.7% of claims, and it is the finding the rest of
+this entry is about.
+
+Severity is now fitted only through `fit_severity()`, on `model.severity_frame`, a
+view with one row per priced claim that takes its rating factors from the frequency
+frame so both models see identical values. It refuses a missing amount and a
+non-positive one by name, passes `na.fail` to `glm()` so nothing can be dropped
+quietly, and refuses a fit that used fewer claims than it was given. A test runs
+those guards in R on synthetic claims; with the missing-amount check removed, it
+fails.
+
+## 2026-09-13 · Reported claims times severity is 36.5% above recorded losses, and the data cannot say which is right
+
+Frequency is fitted on 36,102 reported claims. Severity can only be fitted on the
+26,444 that have amounts. Multiplying the two:
+
+| Pure premium per policy-year | Value |
+|---|---|
+| recorded losses over exposure | 167.18 |
+| reported-claim frequency times mean severity | 228.23, 36.5% high |
+
+The first draft of the analysis added a third row, priced-claim frequency times mean
+severity, reproducing 167.18 exactly, and called it the version that "reproduces
+recorded losses". It does, by definition: priced claims times their mean amount is
+recorded losses. It is an identity and was not evidence of anything. The document
+now says so, and the 36.5% is what it actually is, the ratio of reported to priced
+claims.
+
+Whether that is an overstatement depends on what an unpriced claim is, and nothing in
+this data says. If unpriced claims cost nothing, closed without payment, a frequency
+model of reported claims overprices the book by 36.5%. If their amounts are simply
+missing from the file, recorded losses understate the true cost instead.
+
+What the data can say is that they are not a random subset:
+
+| Claim-reporting policies | Some claims unpriced | All claims priced |
+|---|---|---|
+| mean vehicle age | 4.1 | 7.4 |
+| mean exposure, years | 0.505 | 0.692 |
+| mean driver age | 49.3 | 45.1 |
+
+By region, the share with an unpriced claim runs from 16% in R82 to 53% in R21. So no
+single scaling factor corrects for them, and the claim count the frequency side of
+pure premium uses will move relativities, not only the level. That choice belongs to
+D3-1, where pure premium is assembled, and it goes there with this evidence rather
+than a guess about what the file's authors meant.
+
+## 2026-09-13 · A Gamma log link balances ratios, not totals
+
+The frequency model's fitted claims sum exactly to observed claims, because a Poisson
+log link's intercept equation forces it. A Gamma log link's intercept equation forces
+something else: the mean of amount over fitted amount, which comes out at 1.0000.
+Fitted severity summed over all claims is 97.17% of recorded losses. Pure premium
+built on this fit inherits a level 2.8% low unless it is rebalanced, and that decision
+goes to D3-1 with the claim-count one.
+
+## 2026-09-13 · glm() stops at 25 iterations and returns the coefficients anyway
+
+On all 26,444 claims the Gamma fit converges in 24 iterations, inside `glm()`'s
+default limit of 25. On the five training folds it needs 27, 28, 13, 27 and 25, so
+three of the five would stop before converging. When that happens `glm()` returns
+coefficients with a warning, which in a loop over folds is easy to miss.
+`fit_severity()` allows 100 and refuses any fit that has not converged.
+
+## 2026-09-13 · One claim decided a model comparison
+
+A rule was fixed before fitting: on the frequency holdout's risk groups, compare the
+76 frequency terms against a constant, and the lower Gamma deviance wins. The
+constant won, by 194.0. Before accepting that, the 194 was broken down claim by claim.
+
+| Fold-0 holdout, rated minus constant | Deviance |
+|---|---|
+| all 5,311 claims | 194.0 |
+| one claim of 390,742 | 186.1 |
+| every other claim | 7.9 |
+| claims at or below the median amount | -533.9 |
+| claims above the 99th percentile | 435.1 |
+
+The rated model predicts the bulk of claims better and a few enormous ones worse, and
+one claim is 96% of the margin. Repeated over all five folds, the difference is 194,
+-105, -1,963, 458 and -878. It changes sign, and its size is set by which large claims
+a fold happens to hold.
+
+The rule's verdict was not taken. That needs saying carefully, because declining a
+pre-committed rule after seeing its answer is exactly the move a pre-committed rule
+exists to prevent. The reason is not that the answer was unwelcome. It is that the
+decomposition shows the evaluation cannot discriminate between the models on
+uncapped amounts, in either direction, so neither answer would mean anything. The
+specification is left undecided rather than re-picked under a new rule: `fit_severity()`
+has no default terms, and D2-6 chooses them after large losses are capped, with its
+candidates and a multi-fold rule written down first.
+
+D2-6's choice will not be blind, and the document records why: while this analysis
+was being written, the single-fold comparison was also run on claims capped at the
+99.5th percentile, and the rated model came out slightly ahead.
+
+## 2026-09-13 · Rscript crashes on a multi-line -e argument
+
+The test for `fit_severity()`'s guards first passed its R code to `Rscript -e`. On
+this Windows machine that exits with status 3221225477, an access violation, and no
+output at all, so the fixture looked like R had failed to start. The test writes the
+script to a temporary file and runs that instead.
