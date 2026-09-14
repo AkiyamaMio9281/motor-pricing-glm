@@ -14,7 +14,7 @@ land; for now it is the setup path.
 |---|---|---|---|
 | L1 | Data mart: raw to staging to star schema to segment mart | SQL (Postgres) | through star schema, indexed |
 | L2 | Claim frequency, Poisson GLM with exposure offset | R | offset model, banded terms, robust errors |
-| L3 | Claim severity, Gamma GLM on claiming policies only | R | population fixed, terms not yet chosen |
+| L3 | Claim severity, Gamma GLM on claiming policies only | R | capped Gamma, terms chosen, diagnostics |
 | L4 | Pure premium, gradient boosting baseline, validation | Python | |
 | L5 | Rate relativities, normalization, credibility weighting | Python | |
 | L6 | Excel rate workbook and Power BI report | Python, Power BI | |
@@ -99,7 +99,16 @@ Rscript R/frequency_exposure.R   # about 90 s; tests fail if the document goes s
 Rscript R/frequency_banding.R    # several minutes; same staleness checks
 Rscript R/frequency_dispersion.R # a few minutes
 Rscript R/severity_population.R  # a couple of minutes
+Rscript R/severity_large_losses.R
+Rscript R/model_diagnostics.R    # writes the figures in docs/figures/
 ```
+
+The pricing severity model is `fit_pricing_severity()`: claims capped at 34,377, the
+99.5th percentile, with the 25.3% of losses above it restored by a flat load of
+1.3391. Capping rather than dropping matters; dropping the same claims would leave
+pure premium a third short. `docs/model-diagnostics.md` shows the Gamma distribution
+fitting badly, capped or not, because 40.7% of claims sit on four exact amounts, so
+the severity model is used for its mean and never for its distribution.
 
 Severity is fitted through `fit_severity()` on `model.severity_frame`, one row per
 priced claim, and refuses missing or non-positive amounts by name rather than letting

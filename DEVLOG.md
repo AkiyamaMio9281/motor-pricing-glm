@@ -1325,3 +1325,114 @@ The test for `fit_severity()`'s guards first passed its R code to `Rscript -e`. 
 this Windows machine that exits with status 3221225477, an access violation, and no
 output at all, so the fixture looked like R had failed to start. The test writes the
 script to a temporary file and runs that instead.
+
+---
+
+## 2026-09-13 · Cap large claims, do not drop them
+
+The plan said to truncate claims above the 99.5th percentile. Truncating can mean
+two things, and they cost very different amounts. Dropping a claim above the
+threshold throws away the part of it below the threshold as well; capping keeps
+every claim and sets aside only what lies above.
+
+| Threshold | Cap | Claims above | Capped off | Lost if dropped |
+|---|---|---|---|---|
+| 99th percentile | 16,451 | 265 | 30.7% | 38.0% |
+| 99.5th percentile | 34,377 | 133 | 25.3% | 33.0% |
+| 99.9th percentile | 152,223 | 27 | 14.8% | 21.6% |
+
+At the planned threshold, dropping would leave pure premium 33% below recorded
+losses. Capping sets aside 25.3%, which is added back as a load of 1.3391 on capped
+severity. `cap_claims()` replaces the amount with the capped one and keeps the
+original beside it, so a frame shows whether it has been capped and refuses to be
+capped twice.
+
+A quarter of all losses above a cap is not a small simplification, and the load
+rests on very few claims: the single largest supplies 26.6% of everything capped
+off, and without it the load would be 1.2490. The cap is fixed as a constant, like
+the rating bands. Even its value depends on a definition: R's nine quantile types
+give 34,375 to 34,739 on this data, so the constant records type 7, which matches
+Postgres `percentile_cont`, and a test recomputes it there.
+
+## 2026-09-13 · Capping made the severity comparison decidable
+
+D2-5 handed on two candidates, a constant and the frequency terms, and the promise
+that the rule would be written down before fitting. It was, in the header of
+`R/severity_large_losses.R`: lower total out-of-fold Gamma deviance over the five
+risk-group folds, on capped amounts. No third candidate was added, because anything
+added now would have been shaped by D2-5's drop-one tests.
+
+| Rated minus constant, by fold | 0 | 1 | 2 | 3 | 4 |
+|---|---|---|---|---|---|
+| uncapped, from D2-5 | 194.0 | -105.1 | -1,962.7 | 458.2 | -878.0 |
+| capped | -21.2 | 42.0 | -17.8 | -11.4 | -32.7 |
+
+Capped, the frequency terms win by 41.0 in total and in four folds of five. The
+margin is small, 0.13%, and it is recorded as small. On all claims, capping also
+changes both of D2-5's side findings: the fit converges in 7 iterations instead of
+24, and fitted amounts sum to 0.9999 of capped losses instead of 0.9717 of uncapped
+ones. Iteration counts on the capped training folds were not recorded.
+
+As D2-5 disclosed, this was not a blind choice: a single-fold capped comparison had
+already been seen. The five-fold result was first computed by the committed script.
+
+## 2026-09-13 · A flat large-loss load survives its test, narrowly
+
+Loading the capped-off losses back as one factor assumes large claims fall evenly
+across the book. The rule, also fixed in advance, was to reject that if the
+probability of a claim exceeding the cap rose with predicted severity. The slope of
+that probability on log out-of-fold predicted capped severity is 1.016, with a 95%
+interval of -0.031 to 2.062.
+
+The interval includes zero, so the rule does not reject a flat load and it is kept.
+But the point estimate doubles the odds of a large claim for each doubling of
+predicted severity, and with 133 large claims the test could easily miss an effect
+of that size. The document says so, and the flat load goes forward as a provisional
+simplification for the rate table rather than as a finding that large claims are
+spread evenly.
+
+## 2026-09-13 · The residual plot showed the opposite of what the text already said
+
+The diagnostics use randomised quantile residuals, which are standard normal under
+a correct model whatever the distribution. Ordinary residuals of a Poisson model on
+mostly zeros plot as stripes, and a capped amount is not Gamma at the cap at all.
+
+For frequency the plot says what the numbers already did. Policy-years under 0.1 of
+a year put 6.62% of residuals beyond ±1.96 and lift off the line in the upper tail;
+longer ones put 5.14% there and follow it. That is D2-2's non-proportionality, seen
+as a shape.
+
+For severity, the first draft of the generating script contained its conclusion
+before it had been run: capping "brings the tail back towards the line", which would
+make "a Gamma model on capped claims plus a load" a defensible pair. The numbers came
+back 7.03 for the 99.9th percentile of the residuals uncapped and 6.40 capped,
+against a normal 3.09. The figure showed both panels S-shaped and nearly identical.
+The paragraph was wrong and was deleted, and the text was rewritten from the figure.
+
+The S has a plain cause, found by counting exact amounts:
+
+| Claim amount | Share of claims |
+|---|---|
+| 1,204.00 | 18.1% |
+| 1,128.12 | 11.6% |
+| 1,172.00 | 7.8% |
+| 1,128.00 | 3.1% |
+
+Four exact amounts hold 40.7% of all claims, and 602 is exactly half of 1,204. They
+look like standard settlement figures rather than individually assessed losses; the
+data does not say where they come from. No continuous distribution fitted across the
+whole range can put that much mass on four points, so the middle of the plot is flat
+whether the tail is capped or not. It may also be part of why rating factors say so
+little about severity: two claims in very different risks can both be settled at
+1,204.
+
+The practical conclusion is narrower than the one the draft wanted to reach. A Gamma
+GLM estimates the mean consistently when the mean is right, whatever the true
+distribution, and pure premium needs only the mean, which capping has made stable
+and balanced. Nothing should be taken from the fitted distribution: not tail
+probabilities, not simulated claims, not the price of a limit or an excess.
+
+The figures are committed under `docs/figures/`. R's png device wrote identical bytes
+for identical input across separate sessions on this machine, so, with the
+randomised residuals seeded, regenerating produces no diff; the document and both
+PNGs were checked across two runs.
