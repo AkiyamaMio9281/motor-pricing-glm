@@ -54,11 +54,15 @@ def test_document_describes_the_current_cap(document):
 
 
 def test_figures_are_tracked_by_git():
-    """docs/figures must not fall under the root figures/ ignore rule."""
     import subprocess
 
     for name in ("frequency-quantile-residuals.png", "severity-quantile-residuals.png"):
-        ignored = subprocess.run(
-            ["git", "check-ignore", "-q", f"docs/figures/{name}"], cwd=REPO_ROOT
+        path = f"docs/figures/{name}"
+        tracked = subprocess.run(
+            ["git", "ls-files", "--error-unmatch", path], cwd=REPO_ROOT, capture_output=True
         ).returncode == 0
-        assert not ignored, f"docs/figures/{name} is ignored by .gitignore"
+        assert tracked, f"{path} is not tracked by git"
+        ignored = subprocess.run(
+            ["git", "check-ignore", "-q", "--no-index", path], cwd=REPO_ROOT
+        ).returncode == 0
+        assert not ignored, f"{path} is ignored by .gitignore"

@@ -180,7 +180,6 @@ sql/explain/    queries measured by scripts/explain_plans.py
 sql/          ad-hoc analysis queries
 R/            R side: connection, model frame, GLMs
 tests/        pytest
-figures/      generated diagnostics, not committed
 exports/      generated Excel and Power BI extracts, not committed
-docs/         execution plans, credibility derivation, business summary
+docs/         generated analyses, their figures in docs/figures/, credibility derivation
 ```

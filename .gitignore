@@ -19,10 +19,7 @@ __pycache__/
 .RData
 .Rproj.user/
 
-# Generated outputs. Figures and exports are rebuilt by the pipeline; the
-# numbers that matter live in RESULTS.md, which is committed.
-figures/*
-!figures/.gitkeep
+# Generated exports, rebuilt by the pipeline.
 exports/*
 !exports/.gitkeep
 

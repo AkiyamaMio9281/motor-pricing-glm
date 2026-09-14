@@ -1558,3 +1558,21 @@ proposed. There are still no dates or cancellation reasons to confirm it. Exposu
 not a rating factor, so unlike the vehicle-age and regional ratios these are not
 balanced by construction. Calibration by exposure in D3-5 will show this gap for any
 model that prices pro rata.
+
+---
+
+## 2026-09-14 · One place for figures
+
+The repository was set up with an ignored top-level `figures/`, on the plan that
+figures would be rebuilt rather than committed. D2-6 decided the opposite, because
+R's png device writes identical bytes for identical input, and put the committed
+figures beside the documents that embed them, in `docs/figures/`. The empty
+top-level directory, its ignore rule and the README line describing it were left
+behind and contradicted that. They are removed.
+
+With the root rule gone, the D2-6 test that guards `docs/figures/` was checked by
+adding a rule that ignores it. The test still passed. It asked `git check-ignore`,
+which by default does not report a file that is already tracked, and both PNGs are
+tracked, so it could never fail. It now passes `--no-index`, and also requires
+`git ls-files` to know both figures. With the extra rule it fails, and with a figure
+removed from the index it fails.
