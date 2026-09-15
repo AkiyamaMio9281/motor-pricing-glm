@@ -25,6 +25,10 @@ Desktop and use **File → Save as**, choosing the Power BI file (.pbix) type.
 
 ## Pages
 
+![Portfolio overview](../docs/figures/powerbi-portfolio-overview.png)
+
+![Rate relativities](../docs/figures/powerbi-rate-relativities.png)
+
 **Portfolio overview.** Slicers for area, fuel and held-out rows, and cards for exposure,
 priced claims, claim frequency, loss per policy-year and actual over expected. Four charts:
 
@@ -81,4 +85,5 @@ Other checks:
 ## Not committed
 
 `.pbi/cache.abf` is the local data cache, and `.pbi/localSettings.json` holds settings bound
-to the machine. Both are excluded by `powerbi/.gitignore`.
+to the machine. A saved `.pbix` embeds the whole extract, about 27 MB, for the same reason
+the data itself is not committed. All three are excluded by `powerbi/.gitignore`.

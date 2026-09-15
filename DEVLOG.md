@@ -2045,3 +2045,25 @@ a real path on the author's machine through a directory junction to the clone. T
 report working without naming personal folders in a public repository. `powerbi/README.md` says
 how to reproduce the path, and warns that a parameter pointing at a missing folder breaks every
 visual.
+
+## 2026-09-15 · Report defects found in the first screenshots
+
+The rendered pages showed five defects, none of which a field-reference check could catch:
+
+- **The bonus-malus chart was empty.** Its query used the roles `ColumnY` and `LineY`. A line
+  and clustered column chart names them `Y` and `Y2`; Power BI ignores unknown roles and drew
+  nothing. A test now fails on any other role.
+- **Titles and the fuel slicer were clipped.** The earlier fix for overlaps shrank their boxes
+  below the text height. Boxes were enlarged and the cards moved down; a test checks that no two
+  visuals on a page overlap.
+- **Cards abbreviated their values**, 358.4K instead of 358,360.1, so they could not be checked
+  against `powerbi/README.md`. Display units are now none.
+- **The base-level card repeated its field name** under the value. The category label is hidden.
+- **The segment table used column names** such as `normalized_over_manual` and listed columns in
+  model order. Headers are renamed and ordered from the segment through the two rates to the
+  experience figures.
+
+The screenshots in `docs/figures/` were taken after a refresh with these fixes. With no filters,
+the cards and the length-of-cover chart match the check values in `powerbi/README.md`. The
+report now opens on the portfolio overview. A saved `.pbix` is ignored: it embeds the whole
+extract, about 27 MB, and the data is not committed.

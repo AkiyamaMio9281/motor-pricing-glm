@@ -3,9 +3,9 @@
   "name": "2d57b7abd73e6d103133",
   "position": {
     "x": 513.318057087895,
-    "y": 115.87315058417494,
+    "y": 130,
     "z": 950,
-    "height": 79.9524739030807,
+    "height": 76,
     "width": 228.27010665082463,
     "tabOrder": 950
   },
@@ -48,7 +48,22 @@
         }
       ]
     },
-    "drillFilterOtherVisuals": true
+    "drillFilterOtherVisuals": true,
+    "objects": {
+      "labels": [
+        {
+          "properties": {
+            "labelDisplayUnits": {
+              "expr": {
+                "Literal": {
+                  "Value": "1D"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
   },
   "filterConfig": {
     "filters": [
