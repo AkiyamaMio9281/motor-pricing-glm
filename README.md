@@ -15,7 +15,7 @@ land; for now it is the setup path.
 | L1 | Data mart: raw to staging to star schema to segment mart | SQL (Postgres) | through star schema, indexed |
 | L2 | Claim frequency, Poisson GLM with exposure offset | R | offset model, banded terms, robust errors |
 | L3 | Claim severity, Gamma GLM on claiming policies only | R | capped Gamma, terms chosen, diagnostics |
-| L4 | Pure premium, gradient boosting baseline, validation | Python | pure premium on priced claims, holdout by risk group |
+| L4 | Pure premium, gradient boosting baseline, validation | Python | pure premium, risk-group holdout, LightGBM baseline |
 | L5 | Rate relativities, normalization, credibility weighting | Python | |
 | L6 | Excel rate workbook and Power BI report | Python, Power BI | |
 
@@ -104,6 +104,7 @@ Rscript R/model_diagnostics.R    # writes the figures in docs/figures/
 Rscript R/export_predictions.R   # about 3 min; six GLM runs into model.glm_prediction
 .venv/Scripts/python scripts/pure_premium_report.py
 .venv/Scripts/python scripts/holdout_report.py
+.venv/Scripts/python scripts/lightgbm_baseline.py  # about 8 min; tunes, fits and stores the benchmark
 ```
 
 Pure premium is assembled in Python from the GLM predictions R writes to Postgres, with
@@ -128,6 +129,15 @@ what all the rating factors achieve from that leak on `ClaimNb`. Priced claims a
 rarely shared, 51 groups against 35, and on them there is no leak. Both splits live in
 one view, `model.holdout`, and the GLM runs used for validation are fitted on its
 training rows.
+
+The benchmark is LightGBM with a Tweedie objective, trained on the GLM's training rows with
+the same cap, load and exposure basis, and tuned by cross-validation folded by risk group.
+`docs/lightgbm-baseline.md` records that Tweedie boosting satisfies its objective while its
+total drifts to 96% of capped losses, so the benchmark carries an explicit balance
+correction rather than a wider tolerance. The same run confirms D3-2's leak with LightGBM
+itself: on reported claims, row folds score 0.31% better and boost 57% longer. On the
+holdout LightGBM's capped Tweedie deviance is 6.06% below a constant against the GLM's
+5.22%, a gap D3-6 tests.
 
 The pricing severity model is `fit_pricing_severity()`: claims capped at 34,377, the
 99.5th percentile, with the 25.3% of losses above it restored by a flat load of

@@ -1673,3 +1673,109 @@ factor on the rows a run was fitted to, 0.999775 for the validation run
 instead, the claims balance fails at 0.9991, and a test asserts that it does, so the
 training mask cannot quietly become every row. The D3-1 document regenerates
 byte-identical on the changed code.
+
+---
+
+## 2026-09-14 · The benchmark gets the GLM's rows, cap, load and exposure basis, but not its bands
+
+For the comparison to mean anything, LightGBM is trained on exactly what the validation GLM
+saw: the 542,558 training rows of the risk-group split, claims capped at 34,377, and the
+same flat load, 1.3467, from the same training claims. The target is capped loss divided
+by exposure, with exposure as the weight. Under a compound Poisson model that has the same
+likelihood as capped loss with an exposure offset, so a prediction is a capped amount per
+policy-year, the unit D3-1 fixed. `benchmark_pure_premium()` checks it against capped
+losses before multiplying, as `pure_premium()` does for the GLM.
+
+The objective is Tweedie. That is not the Tweedie GLM the plan cut. That would have been a
+third model; this is the loss function of the second. The variance power, 1.5, was not
+tuned. A compound Poisson sum of Gamma claims with shape α is Tweedie with power
+(α + 2) / (α + 1), and D2-6 estimated the capped shape at 0.996, which gives 1.501. A test
+ties the constant to that document.
+
+The plan said "the same bands". The trees get the same eight rating factors without the
+bands. Bands are how a GLM becomes non-linear, and handing a tree the GLM's cut points
+would impose them on it. Area is left out, as in the GLM.
+
+## 2026-09-14 · Tweedie boosting satisfied its objective and failed the pure premium check
+
+The first full run stopped in `pure_premium`: exposure times the benchmark's prediction
+came to 0.9566 of capped losses on its own training rows, outside the 1% tolerance D3-1
+set. That tolerance exists to catch units errors, so the first question was whether this
+was one. It was not. The Tweedie score equation on those rows is 1.2e-05, satisfied, and
+the total drifts as boosting proceeds:
+
+| Rounds | Predicted over actual, training rows |
+|---|---|
+| 1 | 0.9927 |
+| 50 | 0.9564 |
+| 199, chosen | 0.9566 |
+
+A diagnostic run before the fix, with 15 leaves and 1,000 rounds, showed the drift growing
+with the variance power: totals of 0.957, 0.844 and 0.766 at powers 1.1, 1.5 and 1.9. A
+Tweedie log-link fit balances residuals weighted by μ^(1−p), not the total. It is the same
+property that left the Gamma GLM at 0.9717 of recorded losses in D2-5.
+
+The tolerance was not widened. The benchmark carries an explicit balance correction,
+1.0454, estimated on its training rows and stored in `model.benchmark_run`, and
+`pure_premium` still checks the stored predictions. The document reproduces the refusal
+from the uncorrected predictions rather than describing it. Migration 010 gained the
+`balance_factor` column before being committed, followed by `migrate.py --reset` and a
+rebuild.
+
+## 2026-09-14 · Tuning chose the smallest trees in the grid
+
+Sixteen combinations were fixed before fitting: 7, 15, 31 or 63 leaves and a minimum leaf of
+100, 500, 2,000 or 5,000 rows. Learning rate was 0.05 and early stopping 200 rounds, on five
+folds of the training rows assigned by risk group. The lowest out-of-fold Tweedie deviance
+won, and the holdout was not touched. It chose 7 leaves, a minimum leaf of 100, and 199
+rounds. The whole grid spans 0.29% of deviance, and deeper trees were steadily worse.
+
+The winner is on the edge of the grid in both dimensions, so the grid does not bracket the
+optimum. It was not widened after seeing that, and the document says so. Seven leaves and a
+minimum leaf of 5,000 are 0.001% behind, so the minimum leaf is not well determined.
+
+## 2026-09-14 · LightGBM reads back the repeated claim counts, and finds a small leak on capped losses
+
+D3-2 measured the leak with a memoriser and handed on the claim that a boosted model fitted
+to `ClaimNb` with a row split would read it back. This commit tested that with the chosen
+configuration. It compared folds assigned by risk group against folds assigned by row,
+scoring every training row out of fold under both.
+
+The first run used one fold seed, and capped losses came out 0.14% better under row folds.
+One seed cannot separate a leak from fold-to-fold noise, so each scheme was repeated with
+three seeds. The reading was set before those runs: a difference counts only if the two
+schemes' ranges do not overlap.
+
+| Target | Risk-group folds | Row folds | Relative | Rounds, group / row |
+|---|---|---|---|---|
+| reported claims, Poisson | 164,901 to 164,938 | 164,295 to 164,482 | -0.31% | 2,508 / 3,949 |
+| priced claims, Poisson | 128,345 to 128,484 | 128,332 to 128,539 | 0.00% | 1,708 / 1,581 |
+| capped losses, Tweedie | 19,762,432 to 19,774,348 | 19,744,417 to 19,750,727 | -0.10% | 206 / 203 |
+
+On reported claims the leak is confirmed, and it shows in the stopping round as well as the
+score. Row folds keep boosting 57% longer, because the validation fold keeps rewarding what
+the training fold remembers. On priced claim counts there is nothing, as D3-2 found.
+
+On capped losses, the benchmark's own target, row folds win at every seed. D3-2's "no leak
+on priced claims" was a statement about counts, and amounts carry a small one. One possible
+channel was checked and ruled out: copied amounts. In the 66 risk groups with priced
+claims on two or more pieces, 16 pairs of claims on different pieces share an amount. Every
+one of those amounts is 1,204, 1,172 or 1,128.12, among the settlement figures D2-6 found on
+40.7% of claims, so that is what chance gives. The document offers a reading, that a Tweedie deviance on
+capped rates weighs a claim on a short piece heavily, and labels it as a reading. The
+risk-group split is used regardless.
+
+## 2026-09-14 · A first look at the holdout, and nothing more
+
+Scored once, after everything above was fixed:
+
+| Model | Capped Tweedie deviance | Below constant | Capped A/E |
+|---|---|---|---|
+| constant | 5,284,486 | | |
+| GLM | 5,008,494 | 5.22% | 1.005 |
+| LightGBM | 4,964,221 | 6.06% | 1.006 |
+
+LightGBM gets 16% further below the constant than the GLM. The two models' log predictions
+correlate at 0.91 on the holdout. Bonus-malus carries 55.7% of the trees' split gain, and
+region comes next at 11.9%. No claim is made about whether the gap is real. The deviance is
+dominated by claims on short exposures, and D3-6 bootstraps it over risk groups.

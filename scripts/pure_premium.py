@@ -12,6 +12,7 @@ from frame import canonical_md5, load_frequency_frame
 
 PRICING_RUN = "priced_claims"
 VALIDATION_RUN = "priced_claims_risk_group_split"
+BENCHMARK_RUN = "lightgbm_risk_group_split"
 CLAIMS_BALANCE_TOLERANCE = 1e-6
 LOSS_BALANCE_TOLERANCE = 0.01
 
@@ -35,8 +36,19 @@ class Run(NamedTuple):
     trained_on: str
 
 
+class BenchmarkRun(NamedTuple):
+    name: str
+    frame_md5: str
+    trained_on: str
+    large_loss_cap: float
+    large_loss_load: float
+    variance_power: float
+    boosting_rounds: int
+    balance_factor: float
+
+
 class PurePremium(NamedTuple):
-    run: Run
+    run: Run | BenchmarkRun
     frame: pd.DataFrame
     off_balance: float
 
@@ -65,6 +77,16 @@ def check_capped_amount_per_claim(frame: pd.DataFrame) -> float:
     return ratio
 
 
+def check_capped_amount_per_year(frame: pd.DataFrame) -> float:
+    ratio = (frame["exposure"] * frame["capped_amount_per_year"]).sum() / frame["capped_loss"].sum()
+    if abs(ratio - 1) > LOSS_BALANCE_TOLERANCE:
+        raise BasisError(
+            f"exposure times capped_amount_per_year is {ratio:.4f} of capped losses; "
+            "capped_amount_per_year must be capped loss per policy-year, without the large-loss load"
+        )
+    return ratio
+
+
 def check_large_loss_load(frame: pd.DataFrame, large_loss_load: float) -> None:
     recomputed = frame["incurred_loss"].sum() / frame["capped_loss"].sum()
     if abs(recomputed / large_loss_load - 1) > 1e-9:
@@ -87,7 +109,18 @@ def assemble(run: Run, frame: pd.DataFrame) -> PurePremium:
     check_capped_amount_per_claim(trained)
     check_large_loss_load(trained, run.large_loss_load)
     per_year = amount_per_year(frame["claims_per_year"], frame["capped_amount_per_claim"], run.large_loss_load)
-    off_balance = loss_off_balance(trained, per_year[frame["trained"]])
+    return rebalance(run, frame, per_year)
+
+
+def assemble_benchmark(run: BenchmarkRun, frame: pd.DataFrame) -> PurePremium:
+    trained = frame[frame["trained"]]
+    check_capped_amount_per_year(trained)
+    check_large_loss_load(trained, run.large_loss_load)
+    return rebalance(run, frame, frame["capped_amount_per_year"] * run.large_loss_load)
+
+
+def rebalance(run: Run | BenchmarkRun, frame: pd.DataFrame, per_year: pd.Series) -> PurePremium:
+    off_balance = loss_off_balance(frame[frame["trained"]], per_year[frame["trained"]])
     frame = frame.assign(amount_per_year=per_year * off_balance)
     frame["expected_loss"] = frame["exposure"] * frame["amount_per_year"]
     return PurePremium(run, frame, off_balance)
@@ -107,21 +140,34 @@ def load_policies(conn: psycopg.Connection) -> pd.DataFrame:
 
 
 def load_run(conn: psycopg.Connection, run: str, policies: pd.DataFrame | None = None) -> tuple[Run, pd.DataFrame]:
+    return load_predictions(
+        conn, run, policies, Run,
+        "SELECT run, frame_md5, frequency_response, large_loss_cap, large_loss_load, trained_on FROM model.glm_run WHERE run = %s",
+        "model.glm_prediction", ("claims_per_year", "capped_amount_per_claim"), "Rscript R/export_predictions.R",
+    )
+
+
+def load_benchmark_run(conn: psycopg.Connection, run: str, policies: pd.DataFrame | None = None) -> tuple[BenchmarkRun, pd.DataFrame]:
+    return load_predictions(
+        conn, run, policies, BenchmarkRun,
+        "SELECT run, frame_md5, trained_on, large_loss_cap, large_loss_load, variance_power, boosting_rounds, balance_factor "
+        "FROM model.benchmark_run WHERE run = %s",
+        "model.benchmark_prediction", ("capped_amount_per_year",), ".venv/Scripts/python scripts/lightgbm_baseline.py",
+    )
+
+
+def load_predictions(conn, run, policies, run_type, run_sql, table, columns, regenerate):
     if policies is None:
         policies = load_policies(conn)
     with conn.cursor() as cur:
-        cur.execute(
-            "SELECT run, frame_md5, frequency_response, large_loss_cap, large_loss_load, trained_on "
-            "FROM model.glm_run WHERE run = %s",
-            (run,),
-        )
+        cur.execute(run_sql, (run,))
         row = cur.fetchone()
         if row is None:
-            raise LookupError(f"no GLM run {run!r}; run Rscript R/export_predictions.R")
-        meta = Run(*row)
+            raise LookupError(f"no run {run!r} for {table}; run {regenerate}")
+        meta = run_type(*row)
         cur.execute(
-            "SELECT p.idpol, p.claims_per_year, p.capped_amount_per_claim, coalesce(c.capped_loss, 0) AS capped_loss "
-            "FROM model.glm_prediction p "
+            f"SELECT p.idpol, {', '.join('p.' + c for c in columns)}, coalesce(c.capped_loss, 0) AS capped_loss "
+            f"FROM {table} p "
             "LEFT JOIN (SELECT idpol, sum(least(claim_amount, %s))::float8 AS capped_loss FROM fact.claim GROUP BY idpol) c "
             "USING (idpol) WHERE p.run = %s ORDER BY p.idpol",
             (meta.large_loss_cap, run),
@@ -129,14 +175,18 @@ def load_run(conn: psycopg.Connection, run: str, policies: pd.DataFrame | None =
         rows = pd.DataFrame(cur.fetchall(), columns=[d.name for d in cur.description])
 
     if canonical_md5(policies) != meta.frame_md5:
-        raise BasisError(f"run {run!r} was fitted on another frame; re-run Rscript R/export_predictions.R")
+        raise BasisError(f"run {run!r} was fitted on another frame; re-run {regenerate}")
     if len(rows) != len(policies) or not (rows["idpol"].to_numpy() == policies["idpol"].to_numpy()).all():
         raise BasisError(f"run {run!r} does not cover the frame policy for policy")
 
-    frame = policies.assign(**{c: rows[c].to_numpy() for c in ("claims_per_year", "capped_amount_per_claim", "capped_loss")})
+    frame = policies.assign(**{c: rows[c].to_numpy() for c in (*columns, "capped_loss")})
     frame["trained"] = TRAINING[meta.trained_on](frame)
     return meta, frame
 
 
 def pure_premium(conn: psycopg.Connection, run: str = PRICING_RUN, policies: pd.DataFrame | None = None) -> PurePremium:
     return assemble(*load_run(conn, run, policies))
+
+
+def benchmark_pure_premium(conn: psycopg.Connection, run: str = BENCHMARK_RUN, policies: pd.DataFrame | None = None) -> PurePremium:
+    return assemble_benchmark(*load_benchmark_run(conn, run, policies))
