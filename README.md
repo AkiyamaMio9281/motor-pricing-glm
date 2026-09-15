@@ -15,7 +15,7 @@ land; for now it is the setup path.
 | L1 | Data mart: raw to staging to star schema to segment mart | SQL (Postgres) | through star schema, indexed |
 | L2 | Claim frequency, Poisson GLM with exposure offset | R | offset model, banded terms, robust errors |
 | L3 | Claim severity, Gamma GLM on claiming policies only | R | capped Gamma, terms chosen, diagnostics |
-| L4 | Pure premium, gradient boosting baseline, validation | Python | pure premium, risk-group holdout, LightGBM, Gini |
+| L4 | Pure premium, gradient boosting baseline, validation | Python | pure premium, holdout, LightGBM, Gini, lift, calibration |
 | L5 | Rate relativities, normalization, credibility weighting | Python | |
 | L6 | Excel rate workbook and Power BI report | Python, Power BI | |
 
@@ -106,6 +106,7 @@ Rscript R/export_predictions.R   # about 3 min; six GLM runs into model.glm_pred
 .venv/Scripts/python scripts/holdout_report.py
 .venv/Scripts/python scripts/lightgbm_baseline.py  # about 8 min; tunes, fits and stores the benchmark
 .venv/Scripts/python scripts/gini_report.py        # writes docs/figures/lorenz-curves.png
+.venv/Scripts/python scripts/calibration_report.py # decile lift and calibration figures
 ```
 
 Pure premium is assembled in Python from the GLM predictions R writes to Postgres, with
@@ -146,6 +147,14 @@ On the holdout it is 0.319 for the GLM and 0.338 for LightGBM. `docs/gini.md` co
 other things called Gini on the same rows. On recorded losses the two models swap places
 because of ten claims. A version unweighted by exposure gives a constant premium 0.17. The
 Gini coefficient of the prices themselves scores a deliberately degraded model highest.
+
+`docs/calibration.md` draws the decile lift and actual over expected by segment for both
+models, with intervals by risk group. LightGBM separates the ends further, with a top decile
+at 9.7 times the bottom against the GLM's 6.3. Both models miss clearly in one place,
+exposure. On the holdout, policy-years under 0.1 of a year run at 2.66 of expected and full
+years at 0.69, identically for both, because both price a policy-year and scale it pro rata.
+Drivers aged 25-34 sit just outside their interval for both, about what chance gives among
+24 intervals.
 
 The pricing severity model is `fit_pricing_severity()`: claims capped at 34,377, the
 99.5th percentile, with the 25.3% of losses above it restored by a flat load of

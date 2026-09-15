@@ -1855,3 +1855,74 @@ through the palette validator first, and all checks pass on the light surface, w
 separation ΔE 24.7. The PNG is written without the matplotlib version in its metadata. The
 document and the figure were each regenerated twice in separate processes and came out
 identical.
+
+---
+
+## 2026-09-15 · Lift and calibration, with intervals, fixed before computing
+
+Two things were written down before any decile or segment was computed.
+
+The layout: equal-exposure deciles, each ordered by its own model's predicted pure premium per
+policy-year, with identical predictions kept in one decile, the D3-4 tie rule. The segments:
+exposure in the four D3-1 groups, five driver-age groups, four vehicle-age groups and three
+bonus-malus groups.
+
+The reading: actual over expected on capped losses, with recorded losses beside it. A segment
+counts as miscalibrated only if its 95% interval excludes 1.
+
+The interval treats each risk group as one unit. It sums actual minus ratio times expected
+within each group and takes the square root of the summed squares, a sandwich estimate for a
+ratio, clustered for the reason D2-4 clustered the frequency model's errors. A test
+duplicates every row inside its own group and checks the interval widens by exactly √2.
+
+An A/E table without intervals invites reading noise as findings. With 16 segments and 2
+models, even a perfectly calibrated pair would put one or two intervals outside 1.
+
+## 2026-09-15 · LightGBM reaches further at both ends of the lift chart
+
+| Capped loss per policy-year | Bottom decile | Top decile | Top over bottom |
+|---|---|---|---|
+| GLM, actual | 53.6 | 338.5 | 6.3 |
+| LightGBM, actual | 36.1 | 349.9 | 9.7 |
+| GLM, predicted | 47.0 | 353.2 | 7.5 |
+| LightGBM, predicted | 41.5 | 340.2 | 8.2 |
+
+LightGBM's lowest decile has lower actual losses than the GLM's, and its highest has higher
+ones, though the intervals of the two models' end deciles overlap. That is consistent with its
+higher Gini, and nothing more is claimed here. The GLM's first two deciles are out of order:
+53.6, then 42.9. Decile 2 is the one decile interval among twenty that excludes 1, which is
+about what chance gives.
+
+On recorded losses the same deciles swing from 0.52 to 1.67 of expected for the GLM, against
+0.70 to 1.30 on capped losses. The first draft of the document explained the swing as single
+large claims landing in one decile or another. Nothing had been measured to support that, so
+the sentence was replaced with the capped comparison, which was.
+
+## 2026-09-15 · Both models miss exposure, identically, on held-out risk groups
+
+| Exposure | GLM A/E [95%] | LightGBM A/E [95%] |
+|---|---|---|
+| under 0.1 | 2.658 [1.88, 3.44] | 2.665 [1.88, 3.45] |
+| 0.1 to under 0.5 | 1.564 [1.37, 1.76] | 1.559 [1.37, 1.75] |
+| 0.5 to under 1 | 0.916 [0.82, 1.01] | 0.911 [0.82, 1.00] |
+| a full year | 0.694 [0.63, 0.76] | 0.702 [0.63, 0.77] |
+
+D3-1 found the partial-year gap in-sample and warned it would show up here. It does, out of
+sample and for both models, to within 0.01. A more flexible model cannot close it, because
+neither model is given exposure as an input. Both price a policy-year and scale it pro rata,
+which is the design D2-2 argued for. The consequence belongs to the rate table. On the holdout
+a full-year policy runs at 0.69 of its expected loss, and D4 has to decide whether the claims
+of short policy-years belong in a full-year price.
+
+## 2026-09-15 · One more interval outside 1, recorded and not acted on
+
+Outside exposure, drivers aged 25-34 run at 0.876 for the GLM and 0.837 for LightGBM, and both
+intervals just exclude 1. Chance alone would put about one of those 24 intervals outside 1.
+The two models' errors are correlated, so this counts as one observation, not two. Vehicle age
+and bonus-malus are within their intervals for both models. The README draft said the models
+miss "in exactly one place"; that was corrected before commit.
+
+The two figures keep D3-4's identity colours, GLM blue and LightGBM orange. Actual values are
+in neutral ink, so colour always means a model. Ratios are drawn on a log scale, where 0.5
+and 2 sit equally far from 1. Both figures were rendered and looked at before the text was
+written, and both regenerate byte-identical.
