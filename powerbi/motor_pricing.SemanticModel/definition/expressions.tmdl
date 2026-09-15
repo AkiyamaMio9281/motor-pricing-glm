@@ -1,4 +1,4 @@
-expression ExtractFolder = "C:\path\to\motor-pricing-glm\exports\powerbi\" meta [IsParameterQuery=true, Type="Text", IsParameterQueryRequired=true]
+expression ExtractFolder = "C:\motor-pricing-glm\exports\powerbi\" meta [IsParameterQuery=true, Type="Text", IsParameterQueryRequired=true]
 	lineageTag: 44472cfa-ecdd-4806-8fa5-c83f03d4c89b
 
 	annotation PBI_ResultType = Text

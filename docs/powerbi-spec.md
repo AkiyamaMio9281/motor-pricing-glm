@@ -6,7 +6,9 @@ the model and the two pages the project implements.
 
 ## Data model
 
-Every CSV in `exports/powerbi/` is imported through a text parameter, `ExtractFolder`.
+Every CSV in `exports/powerbi/` is imported through a text parameter, `ExtractFolder`, set to
+`C:\motor-pricing-glm\exports\powerbi\`. A clone elsewhere is linked to that path or the
+parameter is changed.
 
 | Table | Grain | Key | Relationship |
 |---|---|---|---|

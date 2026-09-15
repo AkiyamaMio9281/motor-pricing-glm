@@ -9,14 +9,19 @@ not committed.
 ## Open
 
 1. Build the extract: `.venv/Scripts/python scripts/export_rate_workbook.py`.
-2. Open `motor_pricing.pbip` in Power BI Desktop.
-3. **Home → Transform data → Edit parameters.** Set `ExtractFolder` to the absolute path of
-   `exports\powerbi\` in your clone, ending with a backslash. The committed value is a
-   placeholder.
-4. **Home → Refresh.**
+2. Make the clone reachable at `C:\motor-pricing-glm`, the path the `ExtractFolder`
+   parameter uses. Clone it there, or link it from wherever it is:
+   `New-Item -ItemType Junction -Path C:\motor-pricing-glm -Target <your clone>` in
+   PowerShell.
+3. Open `motor_pricing.pbip` in Power BI Desktop and choose **Home → Refresh**.
 
-Setting the parameter rewrites `motor_pricing.SemanticModel/definition/expressions.tmdl`
-with your local path. Do not commit that change.
+If you prefer another location, set `ExtractFolder` under **Home → Transform data → Edit
+parameters**. Keep the parameter pointing at a folder that exists: when it does not, Power BI
+discards the cached data and every visual fails to render. Do not commit a parameter that
+names folders on your own machine; the test suite refuses one under `C:\Users`.
+
+Power BI's web service opens `.pbix` files, not projects. To get one, open the project in
+Desktop and use **File → Save as**, choosing the Power BI file (.pbix) type.
 
 ## Pages
 

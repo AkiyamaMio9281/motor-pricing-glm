@@ -2032,6 +2032,16 @@ things the specification had not anticipated came up while building it:
   the partial-year gap appears: 2.85 of expected under 0.1 of a year, 0.70 for a full year.
 
 Three files stay out of the repository: the data cache, and the two local settings files
-holding machine-bound credentials. The folder parameter is committed as a placeholder, because
-the real value is a local path that names folders on the author's machine. In the saved layout the title boxes overlapped the slicers, and the first-page slicers
+holding machine-bound credentials. The folder parameter was first committed as a placeholder,
+because the real value is a local path that names folders on the author's machine. In the saved layout the title boxes overlapped the slicers, and the first-page slicers
 overlapped the cards; their positions were corrected in the PBIR files. The numbers the refreshed report should show are listed in `powerbi/README.md`.
+
+## 2026-09-15 · A placeholder parameter broke the report
+
+The placeholder folder did not exist, so Power BI Desktop could not use the cached data. The
+parameter had changed since the cache was written, and the refresh the change forced found no
+files. Every visual failed to render. The parameter is now `C:\motor-pricing-glm\exports\powerbi\`,
+a real path on the author's machine through a directory junction to the clone. That keeps the
+report working without naming personal folders in a public repository. `powerbi/README.md` says
+how to reproduce the path, and warns that a parameter pointing at a missing folder breaks every
+visual.
