@@ -734,9 +734,23 @@ Derivation in `docs/credibility.md`; functions in `scripts/credibility.py`.
 | Normalization factor, portfolio-complement rates | 1.0224 |
 | Bühlmann-Straub against the GLM: VHM | -0.103, so k is infinite and Z = 0 |
 
-Each cell also carries a loss ratio, incurred loss over GLM manual premium, 1.000 across the
-book.
+The workbook's Segments sheet carries, for each cell, reported and priced claims, incurred
+loss, GLM manual premium, and loss ratio (incurred loss over manual premium, 1.000 across the
+book), beside the credibility columns.
 
 Driver age 18-19 cells: GLM manual rate 950.0, experience rate 971.5, and 247.7 once shrunk to
 the portfolio mean and normalized. Only 54% of exposure has a portfolio-complement rate within
 10% of the GLM rate. The recommended rates are the GLM's.
+
+## L6 · Exports
+
+From `scripts/export_rate_workbook.py`, about 30 seconds. The outputs are not committed.
+
+- `exports/rate_workbook.xlsx`, three sheets. *Summary* holds the base rate, density exponent,
+  load, off-balance, credibility standard, k and normalization factor. *Segments* holds the
+  308 cells with experience, loss ratio and the four credibility columns. *Drilldown* holds the 81 factor levels with
+  relativities under both bases. Headers are frozen and filtered.
+- `exports/powerbi/`: `fact_policy_year` with 678,013 rows, `fact_claim` with 26,444,
+  `dim_region`, `dim_area`, `dim_vehicle`, `dim_rating_band`, `rate_relativity` and
+  `segment_rate`. The report built on them is specified in `docs/powerbi-spec.md` and is not
+  part of the repository.

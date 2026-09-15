@@ -1985,3 +1985,22 @@ The complement is the decision. The 18-19 cells have a GLM rate of 950.0 and an 
 of 971.5, and the portfolio-complement exhibit prices them at 247.7. The rate table therefore
 uses the GLM rates, and the textbook exhibit is kept in the workbook to show why its
 complement is wrong here.
+
+## 2026-09-15 · Exports and the last documents
+
+`scripts/export_rate_workbook.py` writes the three-sheet workbook with openpyxl (Summary,
+Segments, Drilldown, with frozen, filtered headers and number formats) and the Power BI
+extract as CSV, both under the ignored `exports/`. The Segments sheet is also the experience
+table the specification asks for: reported and priced claims, incurred loss, and a loss ratio
+against the GLM manual premium, which is 1.000 across the book. The data carries no written
+premium, so the pricing model's premium is the only denominator. VBA was dropped from the plan
+earlier for time. `docs/powerbi-spec.md` specifies the data model, the measures and the two report pages,
+so the report can be built from the extract.
+
+The README is now the one-page summary. `docs/for-business.md` explains the rate table without
+the statistics. Two statements in the drafts were wrong and were corrected before writing
+this. The README said 36.5% of reported claims have no amount; that is how much reported
+exceeds priced, and the share without an amount is 26.7%. The business page explained the low
+driver-age relativity for drivers in their late twenties by bonus-malus without having checked
+it. It was checked: drivers aged 25-29 average a bonus-malus of 74.5, with 4% at the floor,
+against 53.3 and 81% for drivers aged 50-54. The page now gives those numbers.

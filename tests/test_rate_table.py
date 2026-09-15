@@ -5,8 +5,10 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from openpyxl import load_workbook
 
 import credibility as cr
+import export_rate_workbook as ex
 import rate_table as rt
 from conftest import scalar
 
@@ -105,3 +107,12 @@ def test_the_credibility_document_states_the_computed_standard(table):
     assert f"**{table.credibility['full_credibility_claims']:,.0f} claims**" in text
     assert f"k = {table.credibility['portfolio']['k']:,.0f} policy-years" in text
 
+
+def test_the_workbook_has_its_three_sheets(table, tmp_path, monkeypatch):
+    monkeypatch.setattr(ex, "EXPORTS", tmp_path)
+    monkeypatch.setattr(ex, "WORKBOOK", tmp_path / "rate_workbook.xlsx")
+    ex.workbook(table, "0" * 32)
+    book = load_workbook(tmp_path / "rate_workbook.xlsx")
+    assert book.sheetnames == ["Summary", "Segments", "Drilldown"]
+    assert book["Segments"].max_row == len(table.segments) + 1
+    assert book["Drilldown"].freeze_panes == "C2"

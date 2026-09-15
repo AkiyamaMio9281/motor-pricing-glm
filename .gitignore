@@ -23,10 +23,7 @@ __pycache__/
 exports/*
 !exports/.gitkeep
 
-# Job-search planning notes. These describe which postings the project targets
-# and how the commit history is paced. They are working notes for the author,
-# not part of the project, and committing them would put hiring-strategy text in
-# a repo meant to be read as engineering work.
+# Local planning notes for the author, not part of the project.
 SPEC.md
 docs/commit-plan.md
 docs/environment.md
