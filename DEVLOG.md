@@ -1949,3 +1949,39 @@ models on the same draw each time.
 
 The capped gap excludes zero, and 99.3% of resamples favour LightGBM. The recorded-loss
 reversal D3-4 traced to ten claims sits well inside its interval.
+
+## 2026-09-15 · The segment mart, and a base level R picked for us
+
+`migrations/011_mart.sql` stores the modelling bands as reference data in `mart.rating_band`, and
+a test compares every row with `R/bands.R`, so SQL and R cannot band differently.
+`mart.policy_segment` joins the bands with LEFT JOINs and a test that no row comes back
+without one, which is the lesson of the INNER JOIN in D1-5 that dropped 10,301 policies without
+a word. `mart.experience_by_segment` covers region by driver-age band: 308 cells, 7 of them with
+no priced claim and 68 under 100 policy-years.
+
+Planned pitfall 6 was real. R takes the first level of each factor as its base, and for driver
+age that is 18-19, 0.3% of exposure. Every other driver band then reads as a discount, from
+0.291 to 1.000, which looks like young drivers are cheap when the opposite is true. The rate
+table rebases each factor on its largest-exposure level: 50-54 for driver age, 7-9 for vehicle
+age, R24 for region, regular fuel, and power 6. Driver age then runs from 0.488 to 1.680. The
+base rate moves from 145.82 to 129.39 at a reference density of 302. A rebase changes how the
+table reads and must not change a single price. `rate_table.build()` refuses to return a table
+unless both versions reprice all 678,013 policy-years to within 1e-9, and a test repeats the
+check.
+
+## 2026-09-15 · The full credibility standard is 5,062 claims, and credibility against the GLM adds nothing
+
+`docs/credibility.md` derives the limited-fluctuation standard from its target instead of
+quoting 1,082. The familiar number is the frequency-only case of ±5% at 90%. For capped pure
+premium the severity coefficient of variation, 1.918, multiplies it by 1 + CV², giving 5,062
+claims. No region by driver-age cell comes close; the largest has 833.
+
+Bühlmann-Straub was then run against two complements. Against the portfolio mean, k = 1,873
+policy-years, Z reaches 0.877, and normalization needs a factor of 1.0224. Against the GLM, the
+between-cell variance estimate is negative, so Z = 0 everywhere. The model leaves no
+region-by-driver-age signal the data can distinguish from noise.
+
+The complement is the decision. The 18-19 cells have a GLM rate of 950.0 and an experience rate
+of 971.5, and the portfolio-complement exhibit prices them at 247.7. The rate table therefore
+uses the GLM rates, and the textbook exhibit is kept in the workbook to show why its
+complement is wrong here.

@@ -690,4 +690,53 @@ the 2.5th and 97.5th percentiles.
 
 ## L5 · Rate table and credibility
 
-Not started.
+### Segment mart
+
+`migrations/011_mart.sql`. `mart.rating_band` holds the modelling bands as reference data, and a
+test checks it against `R/bands.R`. `mart.policy_segment` bands every policy-year with left
+joins: 678,013 rows, none without a band. `mart.experience_by_segment` gives exposure,
+reported and priced claims, incurred loss, frequency, severity and loss per policy-year for
+the 308 region by driver-age cells. 7 cells have no priced claim and 68 have under 100
+policy-years.
+
+### Rate relativities and base level
+
+From `scripts/rate_table.py`, pricing run `priced_claims`, frequency and severity coefficients
+combined. Both bases reprice every policy to within 1e-9 of `pure_premium()`.
+
+| Factor | R's first level | Its exposure | Relativity range | Largest-exposure level | Its exposure | Relativity range |
+|---|---|---|---|---|---|---|
+| bonus-malus band | 50 | 62.8% | 1.000 to 11.467 | 50 | 62.8% | 1.000 to 11.467 |
+| driver age band | 18-19 | 0.3% | 0.291 to 1.000 | 50-54 | 12.8% | 0.488 to 1.680 |
+| region | R11 | 8.4% | 0.779 to 1.592 | R24 | 28.7% | 0.701 to 1.431 |
+| vehicle age band | 0 | 4.7% | 0.447 to 1.015 | 7-9 | 16.0% | 0.483 to 1.096 |
+| vehicle brand | B1 | 26.6% | 0.785 to 1.244 | B1 | 26.6% | 0.785 to 1.244 |
+| fuel | Diesel | 47.6% | 0.851 to 1.000 | Regular | 52.4% | 1.000 to 1.175 |
+| vehicle power | 4 | 16.8% | 1.000 to 1.677 | 6 | 23.0% | 0.884 to 1.483 |
+
+Base rate at the largest-exposure levels and the exposure-weighted median density of 302:
+129.39 per policy-year. At R's first levels and density 1 it is 145.82. Density enters as
+(density / 302)^0.0715. Large-loss load 1.3391, off-balance factor 0.999863.
+
+### Credibility
+
+Derivation in `docs/credibility.md`; functions in `scripts/credibility.py`.
+
+| Quantity | Value |
+|---|---|
+| Capped claim amount, coefficient of variation | 1.918 |
+| Full credibility standard, p = 5%, P = 90%, frequency only | 1,082 claims |
+| Full credibility standard, p = 5%, P = 90%, capped pure premium | 5,062 claims |
+| Largest cell's priced claims, R24 at 50-54 | 833 |
+| Limited-fluctuation Z, maximum and exposure-weighted mean | 0.406, 0.228 |
+| Bühlmann-Straub against the portfolio mean: EPV, VHM, k | 5,343,754; 2,853; 1,873 policy-years |
+| Bühlmann Z, range and exposure-weighted mean | 0 to 0.877, 0.595 |
+| Normalization factor, portfolio-complement rates | 1.0224 |
+| Bühlmann-Straub against the GLM: VHM | -0.103, so k is infinite and Z = 0 |
+
+Each cell also carries a loss ratio, incurred loss over GLM manual premium, 1.000 across the
+book.
+
+Driver age 18-19 cells: GLM manual rate 950.0, experience rate 971.5, and 247.7 once shrunk to
+the portfolio mean and normalized. Only 54% of exposure has a portfolio-complement rate within
+10% of the GLM rate. The recommended rates are the GLM's.
