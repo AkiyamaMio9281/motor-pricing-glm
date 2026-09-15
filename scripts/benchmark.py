@@ -27,12 +27,15 @@ TWEEDIE = {"objective": "tweedie", "tweedie_variance_power": VARIANCE_POWER, "me
 POISSON = {"objective": "poisson", "metric": "poisson"}
 
 
-def tweedie_deviance(rate, mu, weight, power: float = VARIANCE_POWER) -> float:
-    rate, mu, weight = (np.asarray(x, dtype=float) for x in (rate, mu, weight))
-    unit = 2 * (np.power(rate, 2 - power) / ((1 - power) * (2 - power))
+def tweedie_unit_deviance(rate, mu, power: float = VARIANCE_POWER) -> np.ndarray:
+    rate, mu = np.asarray(rate, dtype=float), np.asarray(mu, dtype=float)
+    return 2 * (np.power(rate, 2 - power) / ((1 - power) * (2 - power))
                 - rate * np.power(mu, 1 - power) / (1 - power)
                 + np.power(mu, 2 - power) / (2 - power))
-    return float(np.sum(weight * unit))
+
+
+def tweedie_deviance(rate, mu, weight, power: float = VARIANCE_POWER) -> float:
+    return float(np.sum(np.asarray(weight, dtype=float) * tweedie_unit_deviance(rate, mu, power)))
 
 
 def balance_factor(rate, prediction, weight) -> float:

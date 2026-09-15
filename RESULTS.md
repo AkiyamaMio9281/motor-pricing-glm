@@ -676,6 +676,18 @@ Capped losses, actual over expected, 95% intervals by risk group, figure in
 | bonus-malus | 51-99 | 34.7% | 2,423 | 0.964 [0.88, 1.05] | 0.979 [0.90, 1.06] | 0.90 | 0.92 |
 | bonus-malus | 100+ | 2.7% | 505 | 0.872 [0.70, 1.04] | 0.931 [0.75, 1.11] | 0.71 | 0.76 |
 
+### Paired bootstrap
+
+From `scripts/bootstrap_gap.py`: 1,000 resamples of the 116,307 held-out risk groups, drawn with
+replacement, seed 20260915. Both models are scored on the same resample each time. Intervals are
+the 2.5th and 97.5th percentiles.
+
+| Gap, positive favours LightGBM | Observed | 95% interval | Resamples favouring LightGBM |
+|---|---|---|---|
+| Gini, capped losses | 0.0195 | 0.0046 to 0.0347 | 99.3% |
+| Gini, recorded losses | -0.0223 | -0.0799 to 0.0263 | 25.7% |
+| Capped Tweedie deviance, GLM minus LightGBM, share of the GLM's | 0.0088 | 0.0040 to 0.0138 | 99.9% |
+
 ## L5 · Rate table and credibility
 
 Not started.

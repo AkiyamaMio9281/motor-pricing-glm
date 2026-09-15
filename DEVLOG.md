@@ -1926,3 +1926,26 @@ The two figures keep D3-4's identity colours, GLM blue and LightGBM orange. Actu
 in neutral ink, so colour always means a model. Ratios are drawn on a log scale, where 0.5
 and 2 sit equally far from 1. Both figures were rendered and looked at before the text was
 written, and both regenerate byte-identical.
+
+---
+
+## 2026-09-15 · The remaining plan, shortened
+
+Time ran short, so the last seven planned commits were folded into three, each with a lighter
+process: results go straight into RESULTS.md with a few core tests, and there are no generated
+documents with prose guards, tamper runs or variant sweeps. The Power BI report is specified
+but not built, and the two optional extensions are dropped.
+
+## 2026-09-15 · LightGBM's lead is real on capped losses, and the recorded-loss reversal is noise
+
+`scripts/bootstrap_gap.py` resamples the 116,307 held-out risk groups 1,000 times, scoring both
+models on the same draw each time.
+
+| LightGBM minus GLM | Observed | 95% interval |
+|---|---|---|
+| Gini, capped losses | +0.0195 | 0.0046 to 0.0347 |
+| Gini, recorded losses | -0.0223 | -0.0799 to 0.0263 |
+| capped Tweedie deviance, share of the GLM's | 0.88% lower | 0.40% to 1.38% |
+
+The capped gap excludes zero, and 99.3% of resamples favour LightGBM. The recorded-loss
+reversal D3-4 traced to ten claims sits well inside its interval.
