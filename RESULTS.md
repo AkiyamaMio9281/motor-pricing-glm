@@ -752,5 +752,5 @@ From `scripts/export_rate_workbook.py`, about 30 seconds. The outputs are not co
   relativities under both bases. Headers are frozen and filtered.
 - `exports/powerbi/`: `fact_policy_year` with 678,013 rows, `fact_claim` with 26,444,
   `dim_region`, `dim_area`, `dim_vehicle`, `dim_rating_band`, `rate_relativity` and
-  `segment_rate`. The report built on them is specified in `docs/powerbi-spec.md` and is not
-  part of the repository.
+  `segment_rate`. The two-page report built on them is the Power BI Project in `powerbi/`,
+  specified in `docs/powerbi-spec.md`.

@@ -2015,3 +2015,23 @@ credibility derivation is rewritten in plain ASCII notation. The two generating 
 changed with their documents, and each document regenerates identically. Punctuation and
 mathematical symbols such as the middle dot in headings and the plus-minus sign remain.
 The applied migrations are frozen and were not touched.
+
+## 2026-09-15 · The Power BI report, as a project in source format
+
+The report is committed as a Power BI Project rather than a `.pbix`. The model is TMDL and the
+pages are PBIR JSON, so it can be read and diffed, and a test checks that every field a visual
+uses exists in the model. It was built from `docs/powerbi-spec.md` and the CSV extract. Two
+things the specification had not anticipated came up while building it:
+
+- **Shared band labels.** Driver age and bonus-malus both have bands labelled 55-59 and
+  70-79, so the band table is split into three dimensions. The relativity measures return
+  blank unless exactly one rating factor is selected.
+- **Actual over expected by a rating factor carries no information.** Expected losses come
+  from the model fitted on all rows, which balances claims within every level of its own
+  rating factors. The page-one ratio chart therefore shows length of cover instead, where
+  the partial-year gap appears: 2.85 of expected under 0.1 of a year, 0.70 for a full year.
+
+Three files stay out of the repository: the data cache, and the two local settings files
+holding machine-bound credentials. The folder parameter is committed as a placeholder, because
+the real value is a local path that names folders on the author's machine. In the saved layout the title boxes overlapped the slicers, and the first-page slicers
+overlapped the cards; their positions were corrected in the PBIR files. The numbers the refreshed report should show are listed in `powerbi/README.md`.

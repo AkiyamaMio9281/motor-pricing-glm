@@ -1,0 +1,32 @@
+table fact_claim
+	lineageTag: 6ea7c39a-94ae-40a4-912f-ca5f64bfbab3
+
+	column claim_key
+		dataType: int64
+		isHidden
+		lineageTag: 697bbf33-7672-4289-bf1d-0fe09c1032eb
+		summarizeBy: none
+		sourceColumn: claim_key
+
+	column idpol
+		dataType: int64
+		lineageTag: 6ed1142a-d2ff-4451-80e7-71e019ca4051
+		summarizeBy: none
+		sourceColumn: idpol
+
+	column claim_amount
+		dataType: double
+		lineageTag: 63bf955c-041c-4acc-8444-ff0c2cf33325
+		summarizeBy: sum
+		sourceColumn: claim_amount
+
+	partition fact_claim = m
+		mode: import
+		source =
+				let
+				    Source = Csv.Document(File.Contents(ExtractFolder & "fact_claim.csv"), [Delimiter=",", Columns=3, Encoding=65001, QuoteStyle=QuoteStyle.Csv]),
+				    Headers = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+				    Result = Table.TransformColumnTypes(Headers, {{"claim_key", Int64.Type}, {"idpol", Int64.Type}, {"claim_amount", type number}}, "en-US")
+				in
+				    Result
+

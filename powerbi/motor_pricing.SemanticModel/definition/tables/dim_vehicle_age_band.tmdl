@@ -1,0 +1,30 @@
+table dim_vehicle_age_band
+	lineageTag: d8b8f671-2017-4d63-9abc-529eeb507754
+
+	column lower_bound
+		dataType: int64
+		isHidden
+		lineageTag: 41ffdd8d-4d9b-43f8-bf1b-2a7719278eb5
+		summarizeBy: none
+		sourceColumn: lower_bound
+
+	column veh_age_band
+		dataType: string
+		lineageTag: bed8b894-4e40-474d-9b56-89d7adeb250d
+		summarizeBy: none
+		sourceColumn: veh_age_band
+		sortByColumn: lower_bound
+
+	partition dim_vehicle_age_band = m
+		mode: import
+		source =
+				let
+				    Source = Csv.Document(File.Contents(ExtractFolder & "dim_rating_band.csv"), [Delimiter=",", Columns=3, Encoding=65001, QuoteStyle=QuoteStyle.Csv]),
+				    Headers = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+				    Typed = Table.TransformColumnTypes(Headers, {{"factor", type text}, {"lower_bound", Int64.Type}, {"label", type text}}, "en-US"),
+				    Filtered = Table.SelectRows(Typed, each [factor] = "veh_age"),
+				    RemovedFactor = Table.RemoveColumns(Filtered, {"factor"}),
+				    Result = Table.RenameColumns(RemovedFactor, {{"label", "veh_age_band"}})
+				in
+				    Result
+

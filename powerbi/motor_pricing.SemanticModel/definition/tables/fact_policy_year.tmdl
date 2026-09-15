@@ -1,0 +1,131 @@
+table fact_policy_year
+	lineageTag: 67490a04-7b7e-4f8c-bc0e-935240474dcc
+
+	column idpol
+		dataType: int64
+		lineageTag: b52a0180-db07-461f-8f8f-4aacfbada89d
+		summarizeBy: none
+		sourceColumn: idpol
+
+	column region_key
+		dataType: int64
+		isHidden
+		lineageTag: 139f6ec1-da8b-478b-a390-b8266bcce2f3
+		summarizeBy: none
+		sourceColumn: region_key
+
+	column area_key
+		dataType: int64
+		isHidden
+		lineageTag: 048f73ea-cf60-4dbd-91b8-eacadc810b6f
+		summarizeBy: none
+		sourceColumn: area_key
+
+	column vehicle_key
+		dataType: int64
+		isHidden
+		lineageTag: 718bc787-17b1-4369-8c4c-bc403b397d12
+		summarizeBy: none
+		sourceColumn: vehicle_key
+
+	column driv_age_band
+		dataType: string
+		isHidden
+		lineageTag: dc0cc5ab-8842-4669-8e72-31e1e21319e5
+		summarizeBy: none
+		sourceColumn: driv_age_band
+
+	column veh_age_band
+		dataType: string
+		isHidden
+		lineageTag: b3e4fdfe-9ac1-4f36-b77c-ed72a65d0a4d
+		summarizeBy: none
+		sourceColumn: veh_age_band
+
+	column bonus_malus_band
+		dataType: string
+		isHidden
+		lineageTag: 9e2fd321-4465-4860-9e16-3ba81aa7731b
+		summarizeBy: none
+		sourceColumn: bonus_malus_band
+
+	column density
+		dataType: int64
+		lineageTag: a48f7aec-d388-4094-b21b-ce45a6675c51
+		summarizeBy: sum
+		sourceColumn: density
+
+	column exposure
+		dataType: double
+		lineageTag: 581a3644-73eb-4b04-844a-c02e23e17743
+		summarizeBy: sum
+		sourceColumn: exposure
+
+	column reported_claims
+		dataType: int64
+		lineageTag: e908a302-39f8-4ea9-8334-69713d253af4
+		summarizeBy: sum
+		sourceColumn: reported_claims
+
+	column priced_claims
+		dataType: int64
+		lineageTag: a220ed56-1dd8-46ca-ab49-c4a7277486ae
+		summarizeBy: sum
+		sourceColumn: priced_claims
+
+	column incurred_loss
+		dataType: double
+		lineageTag: 8c9dbce8-467d-4d41-b17f-e201e600554a
+		summarizeBy: sum
+		sourceColumn: incurred_loss
+
+	column capped_loss
+		dataType: double
+		lineageTag: ddf8dd98-41ff-4477-928f-2387696957a3
+		summarizeBy: sum
+		sourceColumn: capped_loss
+
+	column glm_pure_premium
+		dataType: double
+		lineageTag: 3299f7bc-61f0-495e-bfb0-db6ebe6de859
+		summarizeBy: average
+		sourceColumn: glm_pure_premium
+
+	column glm_expected_loss
+		dataType: double
+		lineageTag: 85b465b0-1368-4e66-971b-9a77c666ad27
+		summarizeBy: sum
+		sourceColumn: glm_expected_loss
+
+	column in_holdout
+		dataType: boolean
+		lineageTag: 2276edec-50f2-40e0-a37f-7436cf014ceb
+		summarizeBy: none
+		sourceColumn: in_holdout
+
+	column exposure_group
+		dataType: string
+		lineageTag: 3d90e9c8-e01c-4dc1-98fb-7a1975344986
+		summarizeBy: none
+		sourceColumn: exposure_group
+		sortByColumn: exposure_group_order
+
+	column exposure_group_order
+		dataType: int64
+		isHidden
+		lineageTag: 14bb534d-caca-47e8-81ad-66bc275789cf
+		summarizeBy: none
+		sourceColumn: exposure_group_order
+
+	partition fact_policy_year = m
+		mode: import
+		source =
+				let
+				    Source = Csv.Document(File.Contents(ExtractFolder & "fact_policy_year.csv"), [Delimiter=",", Columns=16, Encoding=65001, QuoteStyle=QuoteStyle.Csv]),
+				    Headers = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+				    Typed = Table.TransformColumnTypes(Headers, {{"idpol", Int64.Type}, {"region_key", Int64.Type}, {"area_key", Int64.Type}, {"vehicle_key", Int64.Type}, {"driv_age_band", type text}, {"veh_age_band", type text}, {"bonus_malus_band", type text}, {"density", Int64.Type}, {"exposure", type number}, {"reported_claims", Int64.Type}, {"priced_claims", Int64.Type}, {"incurred_loss", type number}, {"capped_loss", type number}, {"glm_pure_premium", type number}, {"glm_expected_loss", type number}, {"in_holdout", type logical}}, "en-US"),
+				    AddExposureGroup = Table.AddColumn(Typed, "exposure_group", each if [exposure] < 0.1 then "under 0.1" else if [exposure] < 0.5 then "0.1 to under 0.5" else if [exposure] < 1 then "0.5 to under 1" else "a full year", type text),
+				    Result = Table.AddColumn(AddExposureGroup, "exposure_group_order", each if [exposure] < 0.1 then 1 else if [exposure] < 0.5 then 2 else if [exposure] < 1 then 3 else 4, Int64.Type)
+				in
+				    Result
+

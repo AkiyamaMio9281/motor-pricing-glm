@@ -1,0 +1,71 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.12.0/schema.json",
+  "name": "2d57b7abd73e6d103133",
+  "position": {
+    "x": 513.318057087895,
+    "y": 115.87315058417494,
+    "z": 950,
+    "height": 79.9524739030807,
+    "width": 228.27010665082463,
+    "tabOrder": 950
+  },
+  "visual": {
+    "visualType": "card",
+    "query": {
+      "queryState": {
+        "Values": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "_Measures"
+                    }
+                  },
+                  "Property": "Claim frequency"
+                }
+              },
+              "queryRef": "_Measures.Claim frequency",
+              "nativeQueryRef": "Claim frequency"
+            }
+          ]
+        }
+      }
+    },
+    "visualContainerObjects": {
+      "visualHeader": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "false"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "drillFilterOtherVisuals": true
+  },
+  "filterConfig": {
+    "filters": [
+      {
+        "name": "b741121e4dea600e9260",
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "_Measures"
+              }
+            },
+            "Property": "Claim frequency"
+          }
+        },
+        "type": "Advanced"
+      }
+    ]
+  }
+}

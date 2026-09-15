@@ -1,0 +1,26 @@
+table dim_region
+	lineageTag: da0a9d23-99ae-4d37-88f3-b78213a7f564
+
+	column region_key
+		dataType: int64
+		isHidden
+		lineageTag: 13a964ca-3688-40c0-8673-f23b16ea9e14
+		summarizeBy: none
+		sourceColumn: region_key
+
+	column region_code
+		dataType: string
+		lineageTag: e1237c4f-54d7-409b-b0e6-e55ce586456d
+		summarizeBy: none
+		sourceColumn: region_code
+
+	partition dim_region = m
+		mode: import
+		source =
+				let
+				    Source = Csv.Document(File.Contents(ExtractFolder & "dim_region.csv"), [Delimiter=",", Columns=2, Encoding=65001, QuoteStyle=QuoteStyle.Csv]),
+				    Headers = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+				    Result = Table.TransformColumnTypes(Headers, {{"region_key", Int64.Type}, {"region_code", type text}}, "en-US")
+				in
+				    Result
+

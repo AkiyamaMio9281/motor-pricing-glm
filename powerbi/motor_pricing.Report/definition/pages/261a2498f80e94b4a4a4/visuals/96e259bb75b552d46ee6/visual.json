@@ -1,0 +1,65 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.12.0/schema.json",
+  "name": "96e259bb75b552d46ee6",
+  "position": {
+    "x": 24,
+    "y": 624,
+    "z": 1000,
+    "height": 72,
+    "width": 1232,
+    "tabOrder": 1000
+  },
+  "visual": {
+    "visualType": "textbox",
+    "objects": {
+      "general": [
+        {
+          "properties": {
+            "paragraphs": [
+              {
+                "textRuns": [
+                  {
+                    "value": "Relativities are against the largest-exposure level of each factor; R's default first-level base (driver age 18-19, 0.3% of exposure) would make every other band look like a discount. Segment rates shrink thin cells toward the portfolio mean and are shown for comparison only: against the GLM, Buhlmann credibility is zero, so the rate table keeps the GLM rates. See docs/credibility.md.",
+                    "textStyle": {
+                      "fontSize": "10pt",
+                      "color": "#898781"
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "visualContainerObjects": {
+      "background": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "false"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "visualHeader": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "false"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "drillFilterOtherVisuals": true
+  }
+}

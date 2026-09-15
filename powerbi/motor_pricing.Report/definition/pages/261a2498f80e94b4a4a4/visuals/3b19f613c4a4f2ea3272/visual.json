@@ -1,0 +1,358 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.9.0/schema.json",
+  "name": "3b19f613c4a4f2ea3272",
+  "position": {
+    "x": 748,
+    "y": 136,
+    "z": 1000,
+    "height": 476,
+    "width": 508,
+    "tabOrder": 1000
+  },
+  "visual": {
+    "visualType": "tableEx",
+    "drillFilterOtherVisuals": true,
+    "query": {
+      "queryState": {
+        "Values": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "segment_rate"
+                    }
+                  },
+                  "Property": "region"
+                }
+              },
+              "queryRef": "segment_rate.region",
+              "nativeQueryRef": "Region"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "segment_rate"
+                    }
+                  },
+                  "Property": "driv_age_band"
+                }
+              },
+              "queryRef": "segment_rate.driv_age_band",
+              "nativeQueryRef": "Driver age"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "segment_rate"
+                    }
+                  },
+                  "Property": "exposure"
+                }
+              },
+              "queryRef": "segment_rate.exposure",
+              "nativeQueryRef": "Exposure"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "segment_rate"
+                    }
+                  },
+                  "Property": "priced_claims"
+                }
+              },
+              "queryRef": "segment_rate.priced_claims",
+              "nativeQueryRef": "Priced claims"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "segment_rate"
+                    }
+                  },
+                  "Property": "incurred_loss"
+                }
+              },
+              "queryRef": "segment_rate.incurred_loss",
+              "nativeQueryRef": "Incurred loss"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "segment_rate"
+                    }
+                  },
+                  "Property": "loss_ratio"
+                }
+              },
+              "queryRef": "segment_rate.loss_ratio",
+              "nativeQueryRef": "Loss ratio"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "segment_rate"
+                    }
+                  },
+                  "Property": "manual_rate"
+                }
+              },
+              "queryRef": "segment_rate.manual_rate",
+              "nativeQueryRef": "GLM rate"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "segment_rate"
+                    }
+                  },
+                  "Property": "experience_rate"
+                }
+              },
+              "queryRef": "segment_rate.experience_rate",
+              "nativeQueryRef": "Experience rate"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "segment_rate"
+                    }
+                  },
+                  "Property": "buhlmann_z"
+                }
+              },
+              "queryRef": "segment_rate.buhlmann_z",
+              "nativeQueryRef": "Buhlmann Z"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "segment_rate"
+                    }
+                  },
+                  "Property": "normalized_rate"
+                }
+              },
+              "queryRef": "segment_rate.normalized_rate",
+              "nativeQueryRef": "Credibility rate"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "segment_rate"
+                    }
+                  },
+                  "Property": "normalized_over_manual"
+                }
+              },
+              "queryRef": "segment_rate.normalized_over_manual",
+              "nativeQueryRef": "Credibility / GLM"
+            }
+          ]
+        }
+      }
+    },
+    "objects": {
+      "columnHeaders": [
+        {
+          "properties": {
+            "bold": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "fontSize": {
+              "expr": {
+                "Literal": {
+                  "Value": "9.0D"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "values": [
+        {
+          "properties": {
+            "fontSize": {
+              "expr": {
+                "Literal": {
+                  "Value": "9.0D"
+                }
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "backColor": {
+              "solid": {
+                "color": {
+                  "expr": {
+                    "FillRule": {
+                      "Input": {
+                        "SelectRef": {
+                          "ExpressionName": "segment_rate.normalized_over_manual"
+                        }
+                      },
+                      "FillRule": {
+                        "linearGradient3": {
+                          "min": {
+                            "color": {
+                              "Literal": {
+                                "Value": "'#e34948'"
+                              }
+                            },
+                            "value": {
+                              "Literal": {
+                                "Value": "0.1D"
+                              }
+                            }
+                          },
+                          "mid": {
+                            "color": {
+                              "Literal": {
+                                "Value": "'#fcfcfb'"
+                              }
+                            },
+                            "value": {
+                              "Literal": {
+                                "Value": "1D"
+                              }
+                            }
+                          },
+                          "max": {
+                            "color": {
+                              "Literal": {
+                                "Value": "'#2a78d6'"
+                              }
+                            },
+                            "value": {
+                              "Literal": {
+                                "Value": "2.5D"
+                              }
+                            }
+                          },
+                          "nullColoringStrategy": {
+                            "strategy": {
+                              "Literal": {
+                                "Value": "'noColor'"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "selector": {
+            "data": [
+              {
+                "dataViewWildcard": {
+                  "matchingOption": 1
+                }
+              }
+            ],
+            "metadata": "segment_rate.normalized_over_manual"
+          }
+        }
+      ],
+      "grid": [
+        {
+          "properties": {
+            "gridHorizontal": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "gridVertical": {
+              "expr": {
+                "Literal": {
+                  "Value": "false"
+                }
+              }
+            },
+            "rowPadding": {
+              "expr": {
+                "Literal": {
+                  "Value": "2L"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "visualContainerObjects": {
+      "title": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "text": {
+              "expr": {
+                "Literal": {
+                  "Value": "'Segment credibility by region and driver age'"
+                }
+              }
+            },
+            "fontSize": {
+              "expr": {
+                "Literal": {
+                  "Value": "11.0D"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "visualHeader": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "false"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

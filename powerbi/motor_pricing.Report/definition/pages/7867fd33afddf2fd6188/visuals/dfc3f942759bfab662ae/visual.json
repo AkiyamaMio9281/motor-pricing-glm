@@ -1,0 +1,71 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.12.0/schema.json",
+  "name": "dfc3f942759bfab662ae",
+  "position": {
+    "x": 24.333361622676737,
+    "y": 115.87315058417494,
+    "z": 950,
+    "height": 79.9524739030807,
+    "width": 228.27010665082463,
+    "tabOrder": 950
+  },
+  "visual": {
+    "visualType": "card",
+    "query": {
+      "queryState": {
+        "Values": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "_Measures"
+                    }
+                  },
+                  "Property": "Exposure"
+                }
+              },
+              "queryRef": "_Measures.Exposure",
+              "nativeQueryRef": "Exposure"
+            }
+          ]
+        }
+      }
+    },
+    "visualContainerObjects": {
+      "visualHeader": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "false"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "drillFilterOtherVisuals": true
+  },
+  "filterConfig": {
+    "filters": [
+      {
+        "name": "c77e0d40d3406320a620",
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "_Measures"
+              }
+            },
+            "Property": "Exposure"
+          }
+        },
+        "type": "Advanced"
+      }
+    ]
+  }
+}

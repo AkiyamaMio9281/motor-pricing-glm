@@ -1,0 +1,133 @@
+table segment_rate
+	lineageTag: ce861269-b04f-4778-aa41-b4700e9a558d
+
+	column region
+		dataType: string
+		lineageTag: 0a639600-d581-40e5-9d63-4711da0b6af2
+		summarizeBy: none
+		sourceColumn: region
+
+	column driv_age_band
+		dataType: string
+		lineageTag: 01409632-c7cf-4b57-9cd7-18bd92cc6adf
+		summarizeBy: none
+		sourceColumn: driv_age_band
+		sortByColumn: driv_age_order
+
+	column exposure
+		dataType: double
+		formatString: #,0.0
+		lineageTag: 9342a418-cb08-457e-8af8-d780f98f6ce5
+		summarizeBy: sum
+		sourceColumn: exposure
+
+	column reported_claims
+		dataType: int64
+		lineageTag: c7fad456-7155-4ada-8a11-3e8525e49752
+		summarizeBy: sum
+		sourceColumn: reported_claims
+
+	column priced_claims
+		dataType: int64
+		lineageTag: ff670f5a-055e-48e9-80b9-ae6445a6dd04
+		summarizeBy: sum
+		sourceColumn: priced_claims
+
+	column incurred_loss
+		dataType: double
+		formatString: #,0
+		lineageTag: 701dc08c-b14d-444c-a0c3-8a1528a75bdb
+		summarizeBy: sum
+		sourceColumn: incurred_loss
+
+	column expected
+		dataType: double
+		lineageTag: b8fc1b5d-965a-44e4-9706-c30cf684e065
+		summarizeBy: sum
+		sourceColumn: expected
+
+	column actual
+		dataType: double
+		lineageTag: 40535adc-4093-4fab-9aa3-91c7936a8a48
+		summarizeBy: sum
+		sourceColumn: actual
+
+	column loss_ratio
+		dataType: double
+		formatString: 0.0%
+		lineageTag: 4afd0db5-2b2a-403d-9a1f-2c35e28703ab
+		summarizeBy: average
+		sourceColumn: loss_ratio
+
+	column manual_rate
+		dataType: double
+		formatString: #,0.00
+		lineageTag: c74eecf7-7395-43af-aac0-f0c4d5ff7a68
+		summarizeBy: average
+		sourceColumn: manual_rate
+
+	column experience_rate
+		dataType: double
+		formatString: #,0.00
+		lineageTag: af572e31-e797-4285-8ca2-330e1e4b6678
+		summarizeBy: average
+		sourceColumn: experience_rate
+
+	column buhlmann_z
+		dataType: double
+		formatString: 0.000
+		lineageTag: 09ef5bf4-0b9b-4c83-a0ac-eb6537a10962
+		summarizeBy: average
+		sourceColumn: buhlmann_z
+
+	column limited_fluctuation_z
+		dataType: double
+		lineageTag: c2a3e2d0-8c73-4ae1-bf7d-0c076e6d5d38
+		summarizeBy: average
+		sourceColumn: limited_fluctuation_z
+
+	column model_complement_z
+		dataType: double
+		lineageTag: 2f461cf5-c1b1-4a7f-b39d-d9bbd0c2c799
+		summarizeBy: average
+		sourceColumn: model_complement_z
+
+	column weighted_rate
+		dataType: double
+		lineageTag: 12323e08-83c7-45da-a0ea-65bf13c6a03c
+		summarizeBy: average
+		sourceColumn: weighted_rate
+
+	column normalized_rate
+		dataType: double
+		formatString: #,0.00
+		lineageTag: d5add7dd-4dbf-4dab-b32a-8668b87e02e2
+		summarizeBy: average
+		sourceColumn: normalized_rate
+
+	column driv_age_order
+		dataType: int64
+		isHidden
+		lineageTag: 0672910a-395f-40f8-bb72-9b659e95548e
+		summarizeBy: none
+		sourceColumn: driv_age_order
+
+	column normalized_over_manual
+		dataType: double
+		formatString: 0.00
+		lineageTag: 17c1fffb-c584-4654-aaee-29eb5c385b5e
+		summarizeBy: average
+		sourceColumn: normalized_over_manual
+
+	partition segment_rate = m
+		mode: import
+		source =
+				let
+				    Source = Csv.Document(File.Contents(ExtractFolder & "segment_rate.csv"), [Delimiter=",", Columns=16, Encoding=65001, QuoteStyle=QuoteStyle.Csv]),
+				    Headers = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+				    Typed = Table.TransformColumnTypes(Headers, {{"region", type text}, {"driv_age_band", type text}, {"exposure", type number}, {"reported_claims", Int64.Type}, {"priced_claims", Int64.Type}, {"incurred_loss", type number}, {"expected", type number}, {"actual", type number}, {"loss_ratio", type number}, {"manual_rate", type number}, {"experience_rate", type number}, {"buhlmann_z", type number}, {"limited_fluctuation_z", type number}, {"model_complement_z", type number}, {"weighted_rate", type number}, {"normalized_rate", type number}}, "en-US"),
+				    AddOrder = Table.AddColumn(Typed, "driv_age_order", each let t = Text.Select(Text.BeforeDelimiter([driv_age_band], "-"), {"0".."9"}) in if t = "" then 0 else Number.From(t), Int64.Type),
+				    Result = Table.AddColumn(AddOrder, "normalized_over_manual", each [normalized_rate] / [manual_rate], type number)
+				in
+				    Result
+

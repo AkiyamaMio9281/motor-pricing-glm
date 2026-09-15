@@ -1,0 +1,38 @@
+table dim_vehicle
+	lineageTag: a820ef21-fc74-47f4-af89-413cd611d739
+
+	column vehicle_key
+		dataType: int64
+		isHidden
+		lineageTag: 7b154e72-15d3-41c1-bcba-2f2342842066
+		summarizeBy: none
+		sourceColumn: vehicle_key
+
+	column veh_brand
+		dataType: string
+		lineageTag: 1bce28a7-21f5-4bac-93a2-016bb5d53971
+		summarizeBy: none
+		sourceColumn: veh_brand
+
+	column veh_gas
+		dataType: string
+		lineageTag: 21179f45-3063-4025-8655-d0dfbdd0d618
+		summarizeBy: none
+		sourceColumn: veh_gas
+
+	column veh_power
+		dataType: int64
+		lineageTag: a6823f80-5235-4b8e-ba2f-44fa5d4f002a
+		summarizeBy: none
+		sourceColumn: veh_power
+
+	partition dim_vehicle = m
+		mode: import
+		source =
+				let
+				    Source = Csv.Document(File.Contents(ExtractFolder & "dim_vehicle.csv"), [Delimiter=",", Columns=4, Encoding=65001, QuoteStyle=QuoteStyle.Csv]),
+				    Headers = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+				    Result = Table.TransformColumnTypes(Headers, {{"vehicle_key", Int64.Type}, {"veh_brand", type text}, {"veh_gas", type text}, {"veh_power", Int64.Type}}, "en-US")
+				in
+				    Result
+

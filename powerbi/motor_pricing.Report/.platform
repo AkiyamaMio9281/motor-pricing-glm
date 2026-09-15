@@ -1,0 +1,11 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Report",
+    "displayName": "motor_pricing"
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "f26e99a7-ede3-4e69-87bf-410edb6ccb8d"
+  }
+}

@@ -1,0 +1,71 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.12.0/schema.json",
+  "name": "005d5faf7dd6522cc80a",
+  "position": {
+    "x": 753.17547879713709,
+    "y": 115.87315058417494,
+    "z": 950,
+    "height": 79.9524739030807,
+    "width": 228.27010665082463,
+    "tabOrder": 950
+  },
+  "visual": {
+    "visualType": "card",
+    "query": {
+      "queryState": {
+        "Values": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "_Measures"
+                    }
+                  },
+                  "Property": "Loss per policy-year"
+                }
+              },
+              "queryRef": "_Measures.Loss per policy-year",
+              "nativeQueryRef": "Loss per policy-year"
+            }
+          ]
+        }
+      }
+    },
+    "visualContainerObjects": {
+      "visualHeader": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "false"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "drillFilterOtherVisuals": true
+  },
+  "filterConfig": {
+    "filters": [
+      {
+        "name": "96e2f16eadc47a47da65",
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "_Measures"
+              }
+            },
+            "Property": "Loss per policy-year"
+          }
+        },
+        "type": "Advanced"
+      }
+    ]
+  }
+}

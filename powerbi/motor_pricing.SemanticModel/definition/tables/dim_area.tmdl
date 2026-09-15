@@ -1,0 +1,38 @@
+table dim_area
+	lineageTag: 94ef38e7-1c43-4c9a-acf7-1b170955d497
+
+	column area_key
+		dataType: int64
+		isHidden
+		lineageTag: f5cba816-68e0-4317-a68f-2a193b8e4788
+		summarizeBy: none
+		sourceColumn: area_key
+
+	column area_code
+		dataType: string
+		lineageTag: fa51077e-8feb-4667-b1d5-382ccb1721b9
+		summarizeBy: none
+		sourceColumn: area_code
+
+	column density_min
+		dataType: int64
+		lineageTag: f5a62fb6-9ed2-452e-b1ad-147cc13546cf
+		summarizeBy: none
+		sourceColumn: density_min
+
+	column density_max
+		dataType: int64
+		lineageTag: 9e9aeb22-90f1-472f-944c-35b4dee47633
+		summarizeBy: none
+		sourceColumn: density_max
+
+	partition dim_area = m
+		mode: import
+		source =
+				let
+				    Source = Csv.Document(File.Contents(ExtractFolder & "dim_area.csv"), [Delimiter=",", Columns=4, Encoding=65001, QuoteStyle=QuoteStyle.Csv]),
+				    Headers = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+				    Result = Table.TransformColumnTypes(Headers, {{"area_key", Int64.Type}, {"area_code", type text}, {"density_min", Int64.Type}, {"density_max", Int64.Type}}, "en-US")
+				in
+				    Result
+

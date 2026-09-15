@@ -1,0 +1,28 @@
+relationship b1391348-6dc9-5ae2-a3ec-e1eeff3db1f2
+	fromColumn: fact_policy_year.region_key
+	toColumn: dim_region.region_key
+
+relationship f32ca270-4141-56cc-b89b-430f77c7294a
+	fromColumn: fact_policy_year.area_key
+	toColumn: dim_area.area_key
+
+relationship 8b049885-f30a-5f4e-b78a-9090902e9eb7
+	fromColumn: fact_policy_year.vehicle_key
+	toColumn: dim_vehicle.vehicle_key
+
+relationship 9e5108fe-473c-5364-8acc-03c28b666434
+	fromColumn: fact_policy_year.driv_age_band
+	toColumn: dim_driver_age_band.driv_age_band
+
+relationship 8a603843-dffe-578d-a72b-e1204471c47f
+	fromColumn: fact_policy_year.veh_age_band
+	toColumn: dim_vehicle_age_band.veh_age_band
+
+relationship 6b4dec53-1f9b-5bbc-80be-f6d2558d420b
+	fromColumn: fact_policy_year.bonus_malus_band
+	toColumn: dim_bonus_malus_band.bonus_malus_band
+
+relationship 5668cfdb-9a28-5fb8-a9aa-dfcf40f33c59
+	fromColumn: fact_claim.idpol
+	toColumn: fact_policy_year.idpol
+

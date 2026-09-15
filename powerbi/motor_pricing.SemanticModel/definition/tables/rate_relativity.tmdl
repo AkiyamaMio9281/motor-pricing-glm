@@ -1,0 +1,65 @@
+table rate_relativity
+	lineageTag: bf3b473f-0fb1-429c-98ff-6d41218d36e4
+
+	column factor
+		dataType: string
+		lineageTag: 5bcf16b6-4cc8-4ab6-82e7-4b79cffdd9ea
+		summarizeBy: none
+		sourceColumn: factor
+
+	column level
+		dataType: string
+		lineageTag: b35e5528-d2d2-457f-bc1f-4384619d6f9f
+		summarizeBy: none
+		sourceColumn: level
+		sortByColumn: level_order
+
+	column exposure_share
+		dataType: double
+		formatString: 0.0%
+		lineageTag: bed7b668-8cc6-44d7-90d6-4deaf3dc42d0
+		summarizeBy: sum
+		sourceColumn: exposure_share
+
+	column default_base
+		dataType: string
+		lineageTag: 4289e6c5-e4d1-4d8d-b680-ef6003fa89ac
+		summarizeBy: none
+		sourceColumn: default_base
+
+	column relativity_default_base
+		dataType: double
+		lineageTag: 2b5538a0-507a-48fe-b841-0b84d7884963
+		summarizeBy: sum
+		sourceColumn: relativity_default_base
+
+	column largest_exposure_base
+		dataType: string
+		lineageTag: 98ff3ed7-5991-4e7a-8e97-6b074fccbf6a
+		summarizeBy: none
+		sourceColumn: largest_exposure_base
+
+	column relativity_largest_base
+		dataType: double
+		lineageTag: 4a02b37e-691c-4e10-bd96-e1516acb729a
+		summarizeBy: sum
+		sourceColumn: relativity_largest_base
+
+	column level_order
+		dataType: int64
+		isHidden
+		lineageTag: c89891ff-046f-4e71-bdee-d8d6553bf228
+		summarizeBy: none
+		sourceColumn: level_order
+
+	partition rate_relativity = m
+		mode: import
+		source =
+				let
+				    Source = Csv.Document(File.Contents(ExtractFolder & "rate_relativity.csv"), [Delimiter=",", Columns=7, Encoding=65001, QuoteStyle=QuoteStyle.Csv]),
+				    Headers = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+				    Typed = Table.TransformColumnTypes(Headers, {{"factor", type text}, {"level", type text}, {"exposure_share", type number}, {"default_base", type text}, {"relativity_default_base", type number}, {"largest_exposure_base", type text}, {"relativity_largest_base", type number}}, "en-US"),
+				    Result = Table.AddColumn(Typed, "level_order", each let t = Text.Select(Text.BeforeDelimiter([level], "-"), {"0".."9"}) in if t = "" then 0 else Number.From(t), Int64.Type)
+				in
+				    Result
+

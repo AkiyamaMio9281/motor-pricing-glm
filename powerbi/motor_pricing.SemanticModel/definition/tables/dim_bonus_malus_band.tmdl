@@ -1,0 +1,30 @@
+table dim_bonus_malus_band
+	lineageTag: 40b6c6a8-f0ca-47c0-9162-289efbe1880c
+
+	column lower_bound
+		dataType: int64
+		isHidden
+		lineageTag: 7619f567-17c6-465c-99fa-b65790ee9877
+		summarizeBy: none
+		sourceColumn: lower_bound
+
+	column bonus_malus_band
+		dataType: string
+		lineageTag: 1937040b-665f-492f-a479-f5a5da01126c
+		summarizeBy: none
+		sourceColumn: bonus_malus_band
+		sortByColumn: lower_bound
+
+	partition dim_bonus_malus_band = m
+		mode: import
+		source =
+				let
+				    Source = Csv.Document(File.Contents(ExtractFolder & "dim_rating_band.csv"), [Delimiter=",", Columns=3, Encoding=65001, QuoteStyle=QuoteStyle.Csv]),
+				    Headers = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+				    Typed = Table.TransformColumnTypes(Headers, {{"factor", type text}, {"lower_bound", Int64.Type}, {"label", type text}}, "en-US"),
+				    Filtered = Table.SelectRows(Typed, each [factor] = "bonus_malus"),
+				    RemovedFactor = Table.RemoveColumns(Filtered, {"factor"}),
+				    Result = Table.RenameColumns(RemovedFactor, {{"label", "bonus_malus_band"}})
+				in
+				    Result
+

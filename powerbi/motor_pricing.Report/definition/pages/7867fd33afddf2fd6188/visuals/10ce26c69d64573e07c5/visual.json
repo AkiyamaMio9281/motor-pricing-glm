@@ -1,0 +1,71 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.12.0/schema.json",
+  "name": "10ce26c69d64573e07c5",
+  "position": {
+    "x": 285.04795043707037,
+    "y": 115.87315058417494,
+    "z": 950,
+    "height": 79.9524739030807,
+    "width": 228.27010665082463,
+    "tabOrder": 950
+  },
+  "visual": {
+    "visualType": "card",
+    "query": {
+      "queryState": {
+        "Values": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "_Measures"
+                    }
+                  },
+                  "Property": "Priced claims"
+                }
+              },
+              "queryRef": "_Measures.Priced claims",
+              "nativeQueryRef": "Priced claims"
+            }
+          ]
+        }
+      }
+    },
+    "visualContainerObjects": {
+      "visualHeader": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "false"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "drillFilterOtherVisuals": true
+  },
+  "filterConfig": {
+    "filters": [
+      {
+        "name": "48e236add8d9d1a805b5",
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "_Measures"
+              }
+            },
+            "Property": "Priced claims"
+          }
+        },
+        "type": "Advanced"
+      }
+    ]
+  }
+}

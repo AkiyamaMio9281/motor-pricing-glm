@@ -1,0 +1,84 @@
+table _Measures
+	lineageTag: 01b5ab5b-240c-4541-968a-919de57ab320
+
+	measure Exposure = SUM ( fact_policy_year[exposure] )
+		formatString: #,0.0
+		lineageTag: a96759c6-d117-4874-a621-22bdb0e25b45
+
+	measure 'Reported claims' = SUM ( fact_policy_year[reported_claims] )
+		formatString: #,0
+		lineageTag: ad18cdd6-3867-4fd5-8678-9d11c274db07
+
+	measure 'Priced claims' = SUM ( fact_policy_year[priced_claims] )
+		formatString: #,0
+		lineageTag: d6c68724-eaf4-474a-a6f0-19f168cd3a26
+
+	measure 'Claim frequency' = DIVIDE ( [Priced claims], [Exposure] )
+		formatString: 0.0000
+		lineageTag: b1d2126c-3dec-4e82-acba-49972e580c52
+
+	measure 'Incurred loss' = SUM ( fact_policy_year[incurred_loss] )
+		formatString: #,0
+		lineageTag: f47ff3f1-a986-4ce5-bbf4-cf566346a315
+
+	measure 'Expected loss' = SUM ( fact_policy_year[glm_expected_loss] )
+		formatString: #,0
+		lineageTag: ff53186f-5742-4409-9fbe-fa1112906455
+
+	measure 'Loss per policy-year' = DIVIDE ( [Incurred loss], [Exposure] )
+		formatString: #,0.00
+		lineageTag: db3b1be9-acb5-4332-b3a2-f1491be70733
+
+	measure 'Expected loss per policy-year' = DIVIDE ( [Expected loss], [Exposure] )
+		formatString: #,0.00
+		lineageTag: cac2d7b8-9dfd-46f5-8870-c92bf18821ea
+
+	measure 'Large-loss load' = 1.3391071
+		formatString: 0.0000000
+		lineageTag: 57d9df40-fd8a-4eab-8856-284923cb634c
+
+	measure 'Capped loss per policy-year' = DIVIDE ( SUM ( fact_policy_year[capped_loss] ) * [Large-loss load], [Exposure] )
+		formatString: #,0.00
+		lineageTag: a30c766e-b5cf-4ffd-ab93-9b2f442dd292
+
+	measure 'Actual over expected' = DIVIDE ( [Incurred loss], [Expected loss] )
+		formatString: 0.000
+		lineageTag: 52837b32-4853-4311-8d86-5e1e203fd4ee
+
+	measure 'Capped actual over expected' = DIVIDE ( SUM ( fact_policy_year[capped_loss] ) * [Large-loss load], [Expected loss] )
+		formatString: 0.000
+		lineageTag: c6fb5738-88c0-4fdf-b383-c41fe2ea6312
+
+	measure 'Base level' = SELECTEDVALUE ( rate_relativity[largest_exposure_base], "Select one factor" )
+		lineageTag: 2d11497e-e629-46f8-a0f4-886650a6a6a4
+
+	measure 'Relativity against base' = IF ( HASONEVALUE ( rate_relativity[factor] ), MAX ( rate_relativity[relativity_largest_base] ) )
+		formatString: 0.000
+		lineageTag: 1b7db063-566c-49b0-985c-45d2940db662
+
+	measure 'Relativity exposure share' = IF ( HASONEVALUE ( rate_relativity[factor] ), MAX ( rate_relativity[exposure_share] ) )
+		formatString: 0.0%
+		lineageTag: e103b3cc-b114-408d-8ad3-9e20eca77fb8
+
+	measure 'Relativity default-base value' = IF ( HASONEVALUE ( rate_relativity[factor] ), MAX ( rate_relativity[relativity_default_base] ) )
+		formatString: 0.000
+		lineageTag: e5847bab-17d0-4b08-8c38-0dd35b608cc7
+
+	measure 'Relativity default base' = SELECTEDVALUE ( rate_relativity[default_base] )
+		lineageTag: aca7192b-06b8-470b-8313-5ed2b9e33dc5
+
+	column Placeholder
+		dataType: string
+		isHidden
+		lineageTag: a81ffc01-7fdf-4bd3-b0b4-439a359203f4
+		summarizeBy: none
+		sourceColumn: Placeholder
+
+	partition _Measures = m
+		mode: import
+		source =
+				let
+				    Result = #table(type table [Placeholder = text], {{""}})
+				in
+				    Result
+
