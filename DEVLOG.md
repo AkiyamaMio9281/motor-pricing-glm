@@ -1779,3 +1779,79 @@ LightGBM gets 16% further below the constant than the GLM. The two models' log p
 correlate at 0.91 on the holdout. Bonus-malus carries 55.7% of the trees' split gain, and
 region comes next at 11.9%. No claim is made about whether the gap is real. The deviance is
 dominated by claims on short exposures, and D3-6 bootstraps it over risk groups.
+
+---
+
+## 2026-09-14 · Which Gini, written down before any was computed
+
+The plan's pitfall for this commit is reporting a Gini without saying which one. Before any
+Gini was computed, the reported one was fixed as the ordered Lorenz Gini on capped losses:
+
+- **Ordering.** Held-out policy-years are sorted by predicted pure premium per policy-year,
+  lowest first. It is the annual rate, not the expected loss for the row's exposure, because
+  D3-1 fixed that as the unit of a price.
+- **Axes.** The x-axis is cumulative exposure, so a policy-year counts by how long it ran. The
+  y-axis is cumulative capped loss, because both models price large losses with the same flat
+  load, so the capped losses are what they actually rate.
+- **Score.** 1 minus twice the area under the curve, not normalized.
+- **Ties.** Identical predictions are merged into one step, so the result does not depend on
+  row order.
+
+The recorded-loss version is shown beside it, and every other version is computed for
+comparison and not reported. RESULTS.md puts the definition above the numbers, and a test
+fails if it moves below them or goes missing.
+
+| Model | Capped (reported) | Recorded |
+|---|---|---|
+| GLM | 0.319 | 0.291 |
+| LightGBM | 0.338 | 0.269 |
+
+## 2026-09-14 · On recorded losses the winner reverses, and ten claims are why
+
+LightGBM ranks capped losses better. On recorded losses the GLM does. The ten largest held-out
+policy losses are 21.8% of recorded losses, the largest 399,214. Without those ten policy-years
+the recorded-loss Gini is 0.358 for LightGBM and 0.333 for the GLM, the capped order again.
+Reported without the word "capped", either model could be called the better ranker from the
+same predictions. D3-6 bootstraps both gaps.
+
+The first draft said the recorded Gini "mostly reports which model happened to charge those
+few policies more". That was an explanation, not a measurement, and the draft had nothing
+behind it. The removal test was added to check it, and the sentence now states the result.
+
+## 2026-09-14 · Six other things called Gini, and what each would have said
+
+The same rows and predictions, plus two reference models. One is a constant premium. The other
+is the GLM multiplied by independent mean-1 lognormal noise with σ = 1, the same prices with
+their ranking deliberately damaged.
+
+| Version | Constant | GLM | LightGBM | Noisy GLM |
+|---|---|---|---|---|
+| sorted highest premium first | 0.000 | -0.319 | -0.338 | -0.133 |
+| ties broken by policy id | -0.068 | 0.319 | 0.338 | 0.133 |
+| unweighted, normalized, by premium per year | 0.131 | 0.256 | 0.267 | 0.101 |
+| unweighted, normalized, by expected loss | 0.168 | 0.327 | 0.339 | 0.214 |
+| 2 × AUC − 1, any priced claim | 0.000 | 0.223 | 0.232 | 0.108 |
+| Gini coefficient of the prices | 0.000 | 0.337 | 0.335 | 0.597 |
+
+Three of these would have misled.
+
+The unweighted version, the one common in machine-learning competitions, gives a constant
+premium 0.131 from row order and 0.168 once rows are sorted by expected loss. The
+second is credit for knowing how long a policy ran.
+
+Row order is not neutral either. The lower half of held-out policy ids has a capped loss rate
+of 134.8 per policy-year against 113.9, and a mean exposure of 0.578 against 0.481. Breaking
+ties by id moves a constant model to -0.068 on the exposure-weighted curve, which reads the
+lowest ids as the cheapest. The unweighted version reads them as the most expensive, and its
+0.131 comes from the same order. Merging ties is what gives the reported definition exactly 0.
+
+The Gini coefficient of the prices measures spread. It gives the noisy GLM its highest score,
+0.597, while that model's reported Gini is the worst, 0.133.
+
+## 2026-09-14 · The Lorenz figure is committed and regenerates byte for byte
+
+`docs/figures/lorenz-curves.png` is drawn by the same script. The two series colours were run
+through the palette validator first, and all checks pass on the light surface, with worst CVD
+separation ΔE 24.7. The PNG is written without the matplotlib version in its metadata. The
+document and the figure were each regenerated twice in separate processes and came out
+identical.

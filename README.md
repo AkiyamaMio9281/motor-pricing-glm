@@ -15,7 +15,7 @@ land; for now it is the setup path.
 | L1 | Data mart: raw to staging to star schema to segment mart | SQL (Postgres) | through star schema, indexed |
 | L2 | Claim frequency, Poisson GLM with exposure offset | R | offset model, banded terms, robust errors |
 | L3 | Claim severity, Gamma GLM on claiming policies only | R | capped Gamma, terms chosen, diagnostics |
-| L4 | Pure premium, gradient boosting baseline, validation | Python | pure premium, risk-group holdout, LightGBM baseline |
+| L4 | Pure premium, gradient boosting baseline, validation | Python | pure premium, risk-group holdout, LightGBM, Gini |
 | L5 | Rate relativities, normalization, credibility weighting | Python | |
 | L6 | Excel rate workbook and Power BI report | Python, Power BI | |
 
@@ -105,6 +105,7 @@ Rscript R/export_predictions.R   # about 3 min; six GLM runs into model.glm_pred
 .venv/Scripts/python scripts/pure_premium_report.py
 .venv/Scripts/python scripts/holdout_report.py
 .venv/Scripts/python scripts/lightgbm_baseline.py  # about 8 min; tunes, fits and stores the benchmark
+.venv/Scripts/python scripts/gini_report.py        # writes docs/figures/lorenz-curves.png
 ```
 
 Pure premium is assembled in Python from the GLM predictions R writes to Postgres, with
@@ -138,6 +139,13 @@ correction rather than a wider tolerance. The same run confirms D3-2's leak with
 itself: on reported claims, row folds score 0.31% better and boost 57% longer. On the
 holdout LightGBM's capped Tweedie deviance is 6.06% below a constant against the GLM's
 5.22%, a gap D3-6 tests.
+
+The Gini reported is the ordered Lorenz Gini on capped losses: policy-years sorted by predicted
+pure premium per policy-year, exposure on the x-axis, 1 minus twice the area under the curve.
+On the holdout it is 0.319 for the GLM and 0.338 for LightGBM. `docs/gini.md` computes the
+other things called Gini on the same rows. On recorded losses the two models swap places
+because of ten claims. A version unweighted by exposure gives a constant premium 0.17. The
+Gini coefficient of the prices themselves scores a deliberately degraded model highest.
 
 The pricing severity model is `fit_pricing_severity()`: claims capped at 34,377, the
 99.5th percentile, with the 25.3% of losses above it restored by a flat load of
