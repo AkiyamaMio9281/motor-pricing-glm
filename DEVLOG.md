@@ -1688,8 +1688,8 @@ losses before multiplying, as `pure_premium()` does for the GLM.
 
 The objective is Tweedie. That is not the Tweedie GLM the plan cut. That would have been a
 third model; this is the loss function of the second. The variance power, 1.5, was not
-tuned. A compound Poisson sum of Gamma claims with shape α is Tweedie with power
-(α + 2) / (α + 1), and D2-6 estimated the capped shape at 0.996, which gives 1.501. A test
+tuned. A compound Poisson sum of Gamma claims with shape alpha is Tweedie with power
+(alpha + 2) / (alpha + 1), and D2-6 estimated the capped shape at 0.996, which gives 1.501. A test
 ties the constant to that document.
 
 The plan said "the same bands". The trees get the same eight rating factors without the
@@ -1712,7 +1712,7 @@ the total drifts as boosting proceeds:
 
 A diagnostic run before the fix, with 15 leaves and 1,000 rounds, showed the drift growing
 with the variance power: totals of 0.957, 0.844 and 0.766 at powers 1.1, 1.5 and 1.9. A
-Tweedie log-link fit balances residuals weighted by μ^(1−p), not the total. It is the same
+Tweedie log-link fit balances residuals weighted by mu^(1-p), not the total. It is the same
 property that left the Gamma GLM at 0.9717 of recorded losses in D2-5.
 
 The tolerance was not widened. The benchmark carries an explicit balance correction,
@@ -1821,7 +1821,7 @@ behind it. The removal test was added to check it, and the sentence now states t
 ## 2026-09-14 · Six other things called Gini, and what each would have said
 
 The same rows and predictions, plus two reference models. One is a constant premium. The other
-is the GLM multiplied by independent mean-1 lognormal noise with σ = 1, the same prices with
+is the GLM multiplied by independent mean-1 lognormal noise with sigma = 1, the same prices with
 their ranking deliberately damaged.
 
 | Version | Constant | GLM | LightGBM | Noisy GLM |
@@ -1852,7 +1852,7 @@ The Gini coefficient of the prices measures spread. It gives the noisy GLM its h
 
 `docs/figures/lorenz-curves.png` is drawn by the same script. The two series colours were run
 through the palette validator first, and all checks pass on the light surface, with worst CVD
-separation ΔE 24.7. The PNG is written without the matplotlib version in its metadata. The
+separation Delta E 24.7. The PNG is written without the matplotlib version in its metadata. The
 document and the figure were each regenerated twice in separate processes and came out
 identical.
 
@@ -1976,7 +1976,7 @@ quoting 1,082. The familiar number is the frequency-only case of ±5% at 90%. Fo
 premium the severity coefficient of variation, 1.918, multiplies it by 1 + CV², giving 5,062
 claims. No region by driver-age cell comes close; the largest has 833.
 
-Bühlmann-Straub was then run against two complements. Against the portfolio mean, k = 1,873
+Buhlmann-Straub was then run against two complements. Against the portfolio mean, k = 1,873
 policy-years, Z reaches 0.877, and normalization needs a factor of 1.0224. Against the GLM, the
 between-cell variance estimate is negative, so Z = 0 everywhere. The model leaves no
 region-by-driver-age signal the data can distinguish from noise.
@@ -2004,3 +2004,14 @@ exceeds priced, and the share without an amount is 26.7%. The business page expl
 driver-age relativity for drivers in their late twenties by bonus-malus without having checked
 it. It was checked: drivers aged 25-29 average a bonus-malus of 74.5, with 4% at the floor,
 against 53.3 and 81% for drivers aged 50-54. The page now gives those numbers.
+
+## 2026-09-15 · English only in committed files
+
+Every committed file was scanned for characters outside ASCII, in the current tree and in
+every version in history. No text in any language other than English was found. The only
+letters outside ASCII were the umlaut in Buhlmann's name and Greek letters in formulas. Both
+are now written in English: Buhlmann, and alpha, mu, lambda, sigma and Delta. The
+credibility derivation is rewritten in plain ASCII notation. The two generating scripts were
+changed with their documents, and each document regenerates identically. Punctuation and
+mathematical symbols such as the middle dot in headings and the plus-minus sign remain.
+The applied migrations are frozen and were not touched.

@@ -627,7 +627,7 @@ Other versions on the same rows, for reference only:
 | 2 × AUC − 1, any priced claim | 0.000 | 0.223 | 0.232 | 0.108 |
 | Gini coefficient of the predicted premiums | 0.000 | 0.337 | 0.335 | 0.597 |
 
-The noisy GLM is the GLM times an independent mean-1 lognormal factor with σ = 1. Its reported
+The noisy GLM is the GLM times an independent mean-1 lognormal factor with sigma = 1. Its reported
 Gini is 0.133.
 
 ### Decile lift
@@ -729,10 +729,10 @@ Derivation in `docs/credibility.md`; functions in `scripts/credibility.py`.
 | Full credibility standard, p = 5%, P = 90%, capped pure premium | 5,062 claims |
 | Largest cell's priced claims, R24 at 50-54 | 833 |
 | Limited-fluctuation Z, maximum and exposure-weighted mean | 0.406, 0.228 |
-| Bühlmann-Straub against the portfolio mean: EPV, VHM, k | 5,343,754; 2,853; 1,873 policy-years |
-| Bühlmann Z, range and exposure-weighted mean | 0 to 0.877, 0.595 |
+| Buhlmann-Straub against the portfolio mean: EPV, VHM, k | 5,343,754; 2,853; 1,873 policy-years |
+| Buhlmann Z, range and exposure-weighted mean | 0 to 0.877, 0.595 |
 | Normalization factor, portfolio-complement rates | 1.0224 |
-| Bühlmann-Straub against the GLM: VHM | -0.103, so k is infinite and Z = 0 |
+| Buhlmann-Straub against the GLM: VHM | -0.103, so k is infinite and Z = 0 |
 
 The workbook's Segments sheet carries, for each cell, reported and priced claims, incurred
 loss, GLM manual premium, and loss ratio (incurred loss over manual premium, 1.000 across the

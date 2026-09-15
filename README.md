@@ -47,7 +47,7 @@ LightGBM ranks better, by a small margin that is real. The GLM gives the rate ta
   exposure, at 1.000. The rate table rebases every factor on its largest-exposure level, and
   a test confirms both tables price every policy identically.
 - **Credibility against the model finds nothing to add.** The full credibility standard for
-  capped pure premium is 5,062 claims, derived in `docs/credibility.md`. Bühlmann-Straub
+  capped pure premium is 5,062 claims, derived in `docs/credibility.md`. Buhlmann-Straub
   against the GLM estimates no between-segment variance, so Z = 0. The textbook complement,
   the portfolio mean, would price 18-19-year-olds at a quarter of both the GLM and their own
   experience.

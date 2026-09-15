@@ -40,7 +40,7 @@ little, because that ordering reaches 0.981 on data this sparse.
 ## Other things called Gini
 
 The same held-out rows and predictions under each version. The noisy GLM multiplies every GLM
-prediction by an independent lognormal factor with σ = 1, mean 1: the same model with its
+prediction by an independent lognormal factor with sigma = 1, mean 1: the same model with its
 ranking deliberately degraded.
 
 | Version | constant | GLM | LightGBM | noisy GLM |

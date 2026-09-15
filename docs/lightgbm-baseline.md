@@ -31,8 +31,8 @@ compound Poisson model as capped loss with an exposure offset, the equivalence D
 the Poisson GLM. A prediction is a capped amount per policy-year, and a row's expected capped
 loss is its exposure times that.
 
-The variance power is 1.5. A compound Poisson sum of Gamma claims with shape α is Tweedie with
-power (α + 2) / (α + 1). The capped claims' shape in `docs/model-diagnostics.md` is 0.996, which gives
+The variance power is 1.5. A compound Poisson sum of Gamma claims with shape alpha is Tweedie with
+power (alpha + 2) / (alpha + 1). The capped claims' shape in `docs/model-diagnostics.md` is 0.996, which gives
 1.501.
 
 The trees get the rating factors without the GLM's bands. Bands are how a GLM becomes
@@ -73,7 +73,7 @@ optimum there. It was not widened after seeing that. The whole grid spans
 | 50 | 0.9564 |
 | 199 | 0.9566 |
 
-The Tweedie score equation, exposure times μ^(1−p) times (rate − μ) summed over the training
+The Tweedie score equation, exposure times mu^(1-p) times (rate - mu) summed over the training
 rows and scaled, is 1.2e-05: the objective is satisfied. What it balances is a weighted
 residual, not the total, the same property D2-5 found in the Gamma GLM. Uncorrected, the
 benchmark is refused:

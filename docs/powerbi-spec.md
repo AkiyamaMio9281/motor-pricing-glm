@@ -57,7 +57,7 @@ tens of percent.
 - Bar chart: `relativity_largest_base` by `level`, with a constant line at 1. The tooltip adds
   `exposure_share` and `relativity_default_base`.
 - Table from `segment_rate`: region, driver-age band, exposure, priced claims, incurred loss,
-  loss ratio, manual rate, experience rate, Bühlmann Z, normalized rate. Apply a red-to-blue diverging format to
+  loss ratio, manual rate, experience rate, Buhlmann Z, normalized rate. Apply a red-to-blue diverging format to
   normalized rate over manual rate, centred on 1.
 - Text box: "Relativities are against the largest-exposure level of each factor. Segment rates
   shrink toward the portfolio mean and are shown for comparison; the rate table uses the GLM

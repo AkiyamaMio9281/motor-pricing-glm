@@ -206,7 +206,7 @@ def render(r: dict) -> list[str]:
         "## Other things called Gini",
         "",
         "The same held-out rows and predictions under each version. The noisy GLM multiplies every GLM",
-        f"prediction by an independent lognormal factor with σ = {NOISE_SIGMA:g}, mean 1: the same model with its",
+        f"prediction by an independent lognormal factor with sigma = {NOISE_SIGMA:g}, mean 1: the same model with its",
         "ranking deliberately degraded.",
         "",
         *md_table(
